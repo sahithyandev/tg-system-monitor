@@ -162,17 +162,6 @@ Converts metric samples into alerts:
 * send direct replies
 * broadcast alerts to all subscribed users
 
-### 8) `formatter`
-
-Build human-readable messages:
-
-* status
-* top processes
-* alert text
-* recovery text
-
----
-
 # 5. SQLite schema
 
 Use a very small schema.
