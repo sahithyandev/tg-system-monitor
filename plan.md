@@ -687,7 +687,6 @@ On restart:
 * threshold detection logic
 * cooldown logic
 * recovery logic
-* formatting
 
 ## Integration tests
 
