@@ -85,8 +85,6 @@ Long polling is simpler and usually fine for one bot per server.
 
 Use:
 
-* **Go**
-* **SQLite**
 * **manual `/proc` reading for core metrics**
 * minimal Telegram library
 
@@ -106,8 +104,6 @@ You only need:
 * top processes
 
 All of that is available from Linux procfs/sysfs plus `statfs`.
-
----
 
 # 4. High-level architecture
 
@@ -133,15 +129,6 @@ Loads:
 * paths
 * admin IDs if any
 
-### 3) `db`
-
-SQLite access layer for:
-
-* users
-* subscriptions
-* bot state
-* alert cooldown state
-
 ### 4) `auth`
 
 * verify `/join <password>`
@@ -161,83 +148,6 @@ Converts metric samples into alerts:
 * route commands
 * send direct replies
 * broadcast alerts to all subscribed users
-
-# 5. SQLite schema
-
-Use a very small schema.
-
-## `users`
-
-```sql
-CREATE TABLE IF NOT EXISTS users (
-    telegram_user_id INTEGER PRIMARY KEY,
-    username TEXT,
-    first_name TEXT,
-    last_name TEXT,
-    joined_at TEXT,
-    is_allowed INTEGER NOT NULL DEFAULT 0,
-    alerts_enabled INTEGER NOT NULL DEFAULT 1,
-    last_seen_at TEXT
-);
-```
-
-## `settings`
-
-For instance-local persistent settings.
-
-```sql
-CREATE TABLE IF NOT EXISTS settings (
-    key TEXT PRIMARY KEY,
-    value TEXT NOT NULL
-);
-```
-
-## `alert_state`
-
-Tracks active alerts and cooldown timing.
-
-```sql
-CREATE TABLE IF NOT EXISTS alert_state (
-    alert_key TEXT PRIMARY KEY,
-    is_active INTEGER NOT NULL DEFAULT 0,
-    active_since_unix INTEGER,
-    last_triggered_unix INTEGER,
-    last_recovered_unix INTEGER
-);
-```
-
-## `metric_samples`
-
-Optional. Keep only if you want short local history.
-
-```sql
-CREATE TABLE IF NOT EXISTS metric_samples (
-    ts_unix INTEGER NOT NULL,
-    cpu_percent REAL,
-    mem_percent REAL,
-    swap_percent REAL,
-    disk_percent REAL,
-    load1 REAL,
-    load5 REAL,
-    load15 REAL
-);
-```
-
-If you want maximum lightness, you can skip `metric_samples` and keep recent samples in memory only.
-
-## `failed_auth`
-
-Optional for rate limiting `/join`.
-
-```sql
-CREATE TABLE IF NOT EXISTS failed_auth (
-    telegram_user_id INTEGER PRIMARY KEY,
-    fail_count INTEGER NOT NULL DEFAULT 0,
-    last_fail_unix INTEGER
-);
-```
-
----
 
 # 6. Monitoring model
 
@@ -768,8 +678,6 @@ On restart:
 * admin tools
 * optional local history retention
 
----
-
 # 19. Testing plan
 
 ## Unit tests
@@ -797,8 +705,6 @@ On restart:
 
 ## My default recommendation if you want me to proceed without waiting
 
-* Go
-* SQLite
 * long polling
 * private-chat only
 * `/`, CPU, memory, swap, load, uptime
