@@ -1,15 +1,3 @@
-Given your constraints, I would build it in **Go**.
-
-Why Go fits best here:
-
-* easy to compile into a **single small static binary**
-* low runtime overhead
-* straightforward concurrency for polling + bot handling
-* solid SQLite support
-* good fit for Linux services and `systemd`
-
-Python would be faster to prototype, but it would not meet your “small binary” requirement nearly as well.
-
 ## Recommended shape
 
 Each Linux machine runs its **own independent bot instance**.
@@ -81,13 +69,8 @@ Prefer:
 
 Long polling is simpler and usually fine for one bot per server.
 
----
 
 # 3. Suggested tech stack
-
-## Language
-
-**Go**
 
 ## Libraries
 
@@ -163,18 +146,6 @@ SQLite access layer for:
 
 * verify `/join <password>`
 * enforce allowlist on restricted commands
-
-### 5) `metrics`
-
-Collect current system state:
-
-* CPU %
-* memory %
-* swap %
-* disk %
-* load avg
-* uptime
-* top processes
 
 ### 6) `detector`
 
