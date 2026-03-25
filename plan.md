@@ -12,8 +12,6 @@ Each instance:
 
 That matches your “one bot per instance” requirement exactly.
 
----
-
 # 1. Functional scope
 
 ## Mandatory features
@@ -44,19 +42,13 @@ That matches your “one bot per instance” requirement exactly.
 * joining requires shared password
 * only allowlisted users can request status/top data
 
----
-
 # 2. Non-functional requirements
 
 ## Lightweight target
 
-Aim for:
-
-* single compiled binary
 * RAM usage ideally under ~30–50 MB in normal idle state
 * low CPU overhead from polling
 * SQLite file only, no external DB
-* no containers required
 * no background web server unless needed for webhooks
 
 ## Deployment mode
@@ -116,18 +108,6 @@ All of that is available from Linux procfs/sysfs plus `statfs`.
 * start bot loop
 * start monitor loop
 * handle graceful shutdown
-
-### 2) `config`
-
-Loads:
-
-* Telegram bot token
-* join password hash
-* polling interval
-* alert thresholds
-* cooldowns
-* paths
-* admin IDs if any
 
 ### 4) `auth`
 
