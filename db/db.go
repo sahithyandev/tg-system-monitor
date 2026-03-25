@@ -3,7 +3,9 @@ package db
 import (
 	"database/sql"
 	"fmt"
+	"math"
 	"time"
+	"tg-system-monitor/metrics"
 
 	_ "modernc.org/sqlite"
 )
@@ -76,6 +78,16 @@ func (db *DB) migrate() error {
 			telegram_user_id INTEGER PRIMARY KEY,
 			fail_count INTEGER NOT NULL DEFAULT 0,
 			last_fail_unix INTEGER
+		);`,
+		`CREATE TABLE IF NOT EXISTS metric_samples (
+			ts_unix INTEGER NOT NULL,
+			cpu_percent REAL,
+			mem_percent REAL,
+			swap_percent REAL,
+			disk_percent REAL,
+			load1 REAL,
+			load5 REAL,
+			load15 REAL
 		);`,
 	}
 
@@ -235,4 +247,33 @@ func (db *DB) IncrementFailedAuth(userID int64) error {
 func (db *DB) ResetFailedAuth(userID int64) error {
 	_, err := db.conn.Exec("DELETE FROM failed_auth WHERE telegram_user_id = ?", userID)
 	return err
+}
+
+// Metric samples methods
+
+func (db *DB) SaveMetricSample(s *metrics.MetricSample) error {
+	// Round values to 2 decimal places
+	cpu := round(s.CPUPercent)
+	mem := round(s.MemPercent)
+	swap := round(s.SwapPercent)
+	disk := round(s.DiskPercent)
+	l1 := round(s.Load1)
+	l5 := round(s.Load5)
+	l15 := round(s.Load15)
+
+	_, err := db.conn.Exec(`
+		INSERT INTO metric_samples (ts_unix, cpu_percent, mem_percent, swap_percent, disk_percent, load1, load5, load15)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		s.Timestamp.Unix(), cpu, mem, swap, disk, l1, l5, l15)
+	return err
+}
+
+func round(val float64) float64 {
+	return math.Round(val*100) / 100
+}
+
+func (db *DB) GetRecentSamples(n int) (int, error) {
+	var count int
+	err := db.conn.QueryRow("SELECT COUNT(*) FROM (SELECT 1 FROM metric_samples LIMIT ?)", n).Scan(&count)
+	return count, err
 }
