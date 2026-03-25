@@ -67,7 +67,6 @@ Long polling is simpler and usually fine for one bot per server.
 ## Libraries
 
 * Telegram Bot API client for Go
-* SQLite driver
 * system metrics:
 
   * either standard Linux `/proc` parsing
@@ -85,17 +84,6 @@ Reason:
 * lowest dependency surface
 * best control over resource usage
 * avoids dragging in heavy abstraction layers
-
-You only need:
-
-* CPU
-* memory
-* load average
-* disk usage
-* uptime
-* top processes
-
-All of that is available from Linux procfs/sysfs plus `statfs`.
 
 # 4. High-level architecture
 
@@ -131,14 +119,6 @@ Converts metric samples into alerts:
 
 # 6. Monitoring model
 
-## Polling interval
-
-Recommended:
-
-* every **15 seconds**
-
-That is frequent enough for alerting but still light.
-
 ## Sampling windows
 
 Do not alert on one bad sample.
@@ -170,77 +150,6 @@ Example:
 * CPU recovery threshold: 70%
 
 This avoids flapping.
-
----
-
-# 7. Metrics collection plan
-
-## CPU usage
-
-Read from `/proc/stat` and compute delta across samples.
-
-Store:
-
-* previous total CPU ticks
-* previous idle ticks
-
-Compute:
-
-* `(delta_total - delta_idle) / delta_total * 100`
-
-This is very lightweight and accurate.
-
-## Memory usage
-
-Use `/proc/meminfo`.
-
-Prefer calculation:
-
-* memory pressure based on `MemAvailable`
-
-Formula:
-
-* `used_percent = (MemTotal - MemAvailable) / MemTotal * 100`
-
-This is better than naïve “used memory”.
-
-## Swap
-
-Also from `/proc/meminfo`:
-
-* `SwapTotal`
-* `SwapFree`
-
-## Load average
-
-Read from `/proc/loadavg`.
-
-## Disk usage
-
-Use `statfs` on configured mount points, at least `/`.
-
-Optional later:
-
-* support multiple mountpoints from config
-
-## Uptime
-
-Read from `/proc/uptime`.
-
-## Top processes
-
-For `/top` and for including context in alerts:
-
-* scan `/proc/[pid]/stat` and `/proc/[pid]/status`
-* compute process CPU usage from deltas, or simplify by showing memory-heavy processes + recent CPU snapshot
-* keep this bounded and efficient
-
-For first version, top processes can be:
-
-* top by RSS memory
-* plus top CPU consumers based on sampled deltas over last interval
-
----
 
 # 8. Alert detection logic
 
