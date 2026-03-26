@@ -107,36 +107,47 @@ func joinHandler(authManager *auth.AuthManager, database *db.DB) func(b *gotgbot
 		log.Printf("Received /join command from %s (@%s) in private chat",
 			message.From.FirstName, message.From.Username)
 
-		// Create or update user record in database
-		user := &db.User{
-			ID:            message.From.Id,
-			Username:      message.From.Username,
-			FirstName:     message.From.FirstName,
-			LastName:      message.From.LastName,
-			FirstAuthAt:   time.Now(),
-			LastAuthAt:    time.Now(),
-			AlertsEnabled: true,
-			CreatedAt:     time.Now(),
+		// Extract password from message to check if this is initial authentication
+		parts := strings.Fields(message.Text)
+		password := ""
+		if len(parts) > 1 {
+			password = parts[1]
 		}
 
-		if err := database.UpdateUser(user); err != nil {
-			log.Printf("Failed to create/update user record: %v", err)
-			_, err := message.Reply(b, "❌ Failed to create user record.", nil)
-			return err
+		// Only create/update user record if this is not the initial authentication
+		// (authMiddleware already handled user creation for initial auth)
+		if password == "" {
+			// This is a re-authentication, update the user record
+			user := &db.User{
+				ID:            message.From.Id,
+				Username:      message.From.Username,
+				FirstName:     message.From.FirstName,
+				LastName:      message.From.LastName,
+				FirstAuthAt:   time.Now(),
+				LastAuthAt:    time.Now(),
+				AlertsEnabled: true,
+				CreatedAt:     time.Now(),
+			}
+
+			if err := database.UpdateUser(user); err != nil {
+				log.Printf("Failed to create/update user record: %v", err)
+				_, err := message.Reply(b, "❌ Failed to create user record.", nil)
+				return err
+			}
+
+			response := fmt.Sprintf("✅ *Authentication Successful*\n\n👤 **User:** %s (@%s)\n🆔 **ID:** `%d`\n🔐 **Status:** Authorized to use restricted commands",
+				message.From.FirstName, message.From.Username, message.From.Id)
+
+			_, err := message.Reply(b, response, &gotgbot.SendMessageOpts{
+				ParseMode: "markdown",
+			})
+			if err != nil {
+				log.Printf("Failed to send join confirmation: %v", err)
+				return err
+			}
 		}
 
-		response := fmt.Sprintf("✅ *Authentication Successful*\n\n👤 **User:** %s (@%s)\n🆔 **ID:** `%d`\n🔐 **Status:** Authorized to use restricted commands",
-			message.From.FirstName, message.From.Username, message.From.Id)
-
-		_, err := message.Reply(b, response, &gotgbot.SendMessageOpts{
-			ParseMode: "markdown",
-		})
-		if err != nil {
-			log.Printf("Failed to send join confirmation: %v", err)
-			return err
-		}
-
-		log.Printf("User %s (@%s) authenticated successfully (record created/updated)", message.From.FirstName, message.From.Username)
+		log.Printf("User %s (@%s) authenticated successfully", message.From.FirstName, message.From.Username)
 		return nil
 	})
 }
