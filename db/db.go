@@ -3,9 +3,10 @@ package db
 import (
 	"database/sql"
 	"fmt"
+	"log"
 	"math"
-	"time"
 	"tg-system-monitor/metrics"
+	"time"
 
 	_ "modernc.org/sqlite"
 )
@@ -15,10 +16,11 @@ type User struct {
 	Username      string
 	FirstName     string
 	LastName      string
-	JoinedAt      time.Time
-	IsAllowed     bool
+	FirstAuthAt   time.Time
+	LastAuthAt    time.Time
+	AuthCount     int
 	AlertsEnabled bool
-	LastSeenAt    time.Time
+	CreatedAt     time.Time
 }
 
 type AlertState struct {
@@ -62,10 +64,11 @@ func (db *DB) migrate() error {
 			username TEXT,
 			first_name TEXT,
 			last_name TEXT,
-			joined_at TEXT,
-			is_allowed INTEGER NOT NULL DEFAULT 0,
+			first_auth_at TEXT,
+			last_auth_at TEXT,
+			auth_count INTEGER NOT NULL DEFAULT 0,
 			alerts_enabled INTEGER NOT NULL DEFAULT 1,
-			last_seen_at TEXT
+			created_at TEXT DEFAULT CURRENT_TIMESTAMP
 		);`,
 		`CREATE TABLE IF NOT EXISTS settings (
 			key TEXT PRIMARY KEY,
@@ -100,6 +103,84 @@ func (db *DB) migrate() error {
 			return err
 		}
 	}
+
+	// Handle migration from old allowlist system to new password-only system
+	if err := db.migrateFromAllowlist(); err != nil {
+		log.Printf("Warning: Failed to migrate from allowlist system: %v", err)
+	}
+
+	return nil
+}
+
+// migrateFromAllowlist handles migration from old allowlist system to new password-only system
+func (db *DB) migrateFromAllowlist() error {
+	// Check if old schema exists (has is_allowed column)
+	var hasOldSchema bool
+	err := db.conn.QueryRow(`
+		SELECT COUNT(*) > 0 FROM pragma_table_info('users') WHERE name = 'is_allowed'
+	`).Scan(&hasOldSchema)
+	if err != nil {
+		return err
+	}
+
+	if !hasOldSchema {
+		// New schema already in place
+		return nil
+	}
+
+	// Check if new columns already exist
+	var hasNewSchema bool
+	err = db.conn.QueryRow(`
+		SELECT COUNT(*) > 0 FROM pragma_table_info('users') WHERE name = 'first_auth_at'
+	`).Scan(&hasNewSchema)
+	if err != nil {
+		return err
+	}
+
+	if hasNewSchema {
+		// Migration already completed
+		return nil
+	}
+
+	// Add new columns for password-only system
+	migrationQueries := []string{
+		`ALTER TABLE users ADD COLUMN first_auth_at TEXT`,
+		`ALTER TABLE users ADD COLUMN last_auth_at TEXT`,
+		`ALTER TABLE users ADD COLUMN auth_count INTEGER NOT NULL DEFAULT 0`,
+		`ALTER TABLE users ADD COLUMN created_at TEXT DEFAULT CURRENT_TIMESTAMP`,
+	}
+
+	for _, q := range migrationQueries {
+		if _, err := db.conn.Exec(q); err != nil {
+			return err
+		}
+	}
+
+	// Migrate existing allowed users to new system
+	_, err = db.conn.Exec(`
+		UPDATE users SET 
+			first_auth_at = joined_at,
+			last_auth_at = last_seen_at,
+			auth_count = 1,
+			created_at = joined_at
+		WHERE is_allowed = 1
+	`)
+	if err != nil {
+		return err
+	}
+
+	// Migrate existing non-allowed users to new system (keep their data but no auth history)
+	_, err = db.conn.Exec(`
+		UPDATE users SET 
+			auth_count = 0,
+			created_at = COALESCE(joined_at, datetime('now'))
+		WHERE is_allowed = 0 OR is_allowed IS NULL
+	`)
+	if err != nil {
+		return err
+	}
+
+	log.Printf("Successfully migrated from allowlist system to password-only system")
 	return nil
 }
 
@@ -107,13 +188,13 @@ func (db *DB) migrate() error {
 
 func (db *DB) GetUser(id int64) (*User, error) {
 	var u User
-	var joinedAt, lastSeenAt string
-	var isAllowed, alertsEnabled int
+	var firstAuthAt, lastAuthAt, createdAt string
+	var alertsEnabled int
 
 	err := db.conn.QueryRow(`
-		SELECT telegram_user_id, username, first_name, last_name, joined_at, is_allowed, alerts_enabled, last_seen_at
+		SELECT telegram_user_id, username, first_name, last_name, first_auth_at, last_auth_at, auth_count, alerts_enabled, created_at
 		FROM users WHERE telegram_user_id = ?`, id).Scan(
-		&u.ID, &u.Username, &u.FirstName, &u.LastName, &joinedAt, &isAllowed, &alertsEnabled, &lastSeenAt)
+		&u.ID, &u.Username, &u.FirstName, &u.LastName, &firstAuthAt, &lastAuthAt, &u.AuthCount, &alertsEnabled, &createdAt)
 
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -122,40 +203,40 @@ func (db *DB) GetUser(id int64) (*User, error) {
 		return nil, err
 	}
 
-	u.JoinedAt, _ = time.Parse(time.RFC3339, joinedAt)
-	u.LastSeenAt, _ = time.Parse(time.RFC3339, lastSeenAt)
-	u.IsAllowed = isAllowed == 1
+	u.FirstAuthAt, _ = time.Parse(time.RFC3339, firstAuthAt)
+	u.LastAuthAt, _ = time.Parse(time.RFC3339, lastAuthAt)
+	u.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
 	u.AlertsEnabled = alertsEnabled == 1
 
 	return &u, nil
 }
 
 func (db *DB) UpdateUser(u *User) error {
-	isAllowed := 0
-	if u.IsAllowed {
-		isAllowed = 1
-	}
 	alertsEnabled := 0
 	if u.AlertsEnabled {
 		alertsEnabled = 1
 	}
 
 	_, err := db.conn.Exec(`
-		INSERT INTO users (telegram_user_id, username, first_name, last_name, joined_at, is_allowed, alerts_enabled, last_seen_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO users (telegram_user_id, username, first_name, last_name, first_auth_at, last_auth_at, auth_count, alerts_enabled, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(telegram_user_id) DO UPDATE SET
 			username = excluded.username,
 			first_name = excluded.first_name,
 			last_name = excluded.last_name,
-			is_allowed = excluded.is_allowed,
+			first_auth_at = excluded.first_auth_at,
+			last_auth_at = excluded.last_auth_at,
+			auth_count = excluded.auth_count,
 			alerts_enabled = excluded.alerts_enabled,
-			last_seen_at = excluded.last_seen_at`,
-		u.ID, u.Username, u.FirstName, u.LastName, u.JoinedAt.Format(time.RFC3339), isAllowed, alertsEnabled, u.LastSeenAt.Format(time.RFC3339))
+			created_at = excluded.created_at`,
+		u.ID, u.Username, u.FirstName, u.LastName,
+		u.FirstAuthAt.Format(time.RFC3339), u.LastAuthAt.Format(time.RFC3339), u.AuthCount, alertsEnabled,
+		u.CreatedAt.Format(time.RFC3339))
 	return err
 }
 
 func (db *DB) GetAllowedUsers() ([]User, error) {
-	rows, err := db.conn.Query(`SELECT telegram_user_id, alerts_enabled FROM users WHERE is_allowed = 1`)
+	rows, err := db.conn.Query(`SELECT telegram_user_id, alerts_enabled, auth_count FROM users ORDER BY last_auth_at DESC`)
 	if err != nil {
 		return nil, err
 	}
@@ -165,10 +246,9 @@ func (db *DB) GetAllowedUsers() ([]User, error) {
 	for rows.Next() {
 		var u User
 		var alertsEnabled int
-		if err := rows.Scan(&u.ID, &alertsEnabled); err != nil {
+		if err := rows.Scan(&u.ID, &alertsEnabled, &u.AuthCount); err != nil {
 			return nil, err
 		}
-		u.IsAllowed = true
 		u.AlertsEnabled = alertsEnabled == 1
 		users = append(users, u)
 	}
@@ -250,6 +330,15 @@ func (db *DB) IncrementFailedAuth(userID int64) error {
 
 func (db *DB) ResetFailedAuth(userID int64) error {
 	_, err := db.conn.Exec("DELETE FROM failed_auth WHERE telegram_user_id = ?", userID)
+	return err
+}
+
+func (db *DB) UpdateUserAuth(userID int64) error {
+	_, err := db.conn.Exec(`
+		UPDATE users SET 
+			last_auth_at = datetime('now'),
+			auth_count = auth_count + 1
+		WHERE telegram_user_id = ?`, userID)
 	return err
 }
 

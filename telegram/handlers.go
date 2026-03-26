@@ -102,10 +102,13 @@ func whoamiHandler(database *db.DB) func(b *gotgbot.Bot, ctx *ext.Context) error
 
 		// Determine user status
 		var allowedStatus, alertsStatus string
-		if user != nil && user.IsAllowed {
-			allowedStatus = "✅ Authorized"
+		if user != nil {
+			allowedStatus = "✅ Authenticated"
+			if user.AuthCount > 0 {
+				allowedStatus += fmt.Sprintf(" (%d authentications)", user.AuthCount)
+			}
 		} else {
-			allowedStatus = "✅ Authorized" // For now, allow all users
+			allowedStatus = "❌ Not authenticated"
 		}
 
 		if user != nil && user.AlertsEnabled {

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"strings"
+	"time"
 
 	"tg-system-monitor/auth"
 	"tg-system-monitor/db"
@@ -66,6 +67,24 @@ func joinHandler(authManager *auth.AuthManager, database *db.DB) func(b *gotgbot
 		log.Printf("Received /join command from %s (@%s)",
 			message.From.FirstName, message.From.Username)
 
+		// Create or update user record in database
+		user := &db.User{
+			ID:            message.From.Id,
+			Username:      message.From.Username,
+			FirstName:     message.From.FirstName,
+			LastName:      message.From.LastName,
+			FirstAuthAt:   time.Now(),
+			LastAuthAt:    time.Now(),
+			AlertsEnabled: true,
+			CreatedAt:     time.Now(),
+		}
+
+		if err := database.UpdateUser(user); err != nil {
+			log.Printf("Failed to create/update user record: %v", err)
+			_, err := message.Reply(b, "❌ Failed to create user record.", nil)
+			return err
+		}
+
 		response := fmt.Sprintf("✅ *Authentication Successful*\n\n👤 **User:** %s (@%s)\n🆔 **ID:** `%d`\n🔐 **Status:** Authorized to use restricted commands",
 			message.From.FirstName, message.From.Username, message.From.Id)
 
@@ -77,7 +96,7 @@ func joinHandler(authManager *auth.AuthManager, database *db.DB) func(b *gotgbot
 			return err
 		}
 
-		log.Printf("User %s (@%s) authenticated successfully", message.From.FirstName, message.From.Username)
+		log.Printf("User %s (@%s) authenticated successfully (record created/updated)", message.From.FirstName, message.From.Username)
 		return nil
 	})
 }
@@ -93,10 +112,27 @@ func leaveHandler(authManager *auth.AuthManager, database *db.DB) func(b *gotgbo
 		log.Printf("Received /leave command from %s (@%s)",
 			message.From.FirstName, message.From.Username)
 
+		// Update user's last authentication time
+		user, err := database.GetUser(message.From.Id)
+		if err != nil {
+			log.Printf("Failed to get user info: %v", err)
+			_, err := message.Reply(b, "❌ Error retrieving user information.", nil)
+			return err
+		}
+
+		if user != nil {
+			user.LastAuthAt = time.Now()
+			if err := database.UpdateUser(user); err != nil {
+				log.Printf("Failed to update user auth record: %v", err)
+				_, err := message.Reply(b, "❌ Failed to update authentication record.", nil)
+				return err
+			}
+		}
+
 		response := fmt.Sprintf("👋 *Session Ended*\n\n👤 **User:** %s (@%s)\n🆔 **ID:** `%d`\n🔐 **Status:** Authentication session completed",
 			message.From.FirstName, message.From.Username, message.From.Id)
 
-		_, err := message.Reply(b, response, &gotgbot.SendMessageOpts{
+		_, err = message.Reply(b, response, &gotgbot.SendMessageOpts{
 			ParseMode: "markdown",
 		})
 		if err != nil {
@@ -120,10 +156,18 @@ func allowHandler(authManager *auth.AuthManager, database *db.DB) func(b *gotgbo
 		log.Printf("Received /allow command from %s (@%s)",
 			message.From.FirstName, message.From.Username)
 
-		response := fmt.Sprintf("✅ *Authentication Verified*\n\n👤 **User:** %s (@%s)\n🔐 **Status:** Authenticated for restricted commands\n\nℹ️ *Note:* Allowlist system has been removed. Any user with the correct password can now access restricted commands.",
+		// Get user info for response
+		user, err := database.GetUser(message.From.Id)
+		if err != nil {
+			log.Printf("Failed to get user info: %v", err)
+			_, err := message.Reply(b, "❌ Error retrieving user information.", nil)
+			return err
+		}
+
+		response := fmt.Sprintf("✅ *Authentication Verified*\n\n👤 **User:** %s (@%s)\n🔐 **Status:** Authenticated for restricted commands\n\nℹ️ *Note:* Allowlist system has been removed. Any user with the correct password can access restricted commands.",
 			message.From.FirstName, message.From.Username)
 
-		_, err := message.Reply(b, response, &gotgbot.SendMessageOpts{
+		_, err = message.Reply(b, response, &gotgbot.SendMessageOpts{
 			ParseMode: "markdown",
 		})
 		if err != nil {
@@ -147,10 +191,18 @@ func disallowHandler(authManager *auth.AuthManager, database *db.DB) func(b *got
 		log.Printf("Received /disallow command from %s (@%s)",
 			message.From.FirstName, message.From.Username)
 
+		// Get user info for response
+		user, err := database.GetUser(message.From.Id)
+		if err != nil {
+			log.Printf("Failed to get user info: %v", err)
+			_, err := message.Reply(b, "❌ Error retrieving user information.", nil)
+			return err
+		}
+
 		response := fmt.Sprintf("🔒 *Authentication Confirmed*\n\n👤 **User:** %s (@%s)\n🔐 **Status:** Authenticated for restricted commands\n\nℹ️ *Note:* Allowlist system has been removed. Any user with the correct password can access restricted commands.",
 			message.From.FirstName, message.From.Username)
 
-		_, err := message.Reply(b, response, &gotgbot.SendMessageOpts{
+		_, err = message.Reply(b, response, &gotgbot.SendMessageOpts{
 			ParseMode: "markdown",
 		})
 		if err != nil {
@@ -186,15 +238,51 @@ func alertsHandler(authManager *auth.AuthManager, database *db.DB) func(b *gotgb
 		log.Printf("Received /alerts command from %s (@%s): %s",
 			message.From.FirstName, message.From.Username, action)
 
-		status := "🔕 Disabled"
-		if action == "on" {
-			status = " Enabled"
+		// Get or create user record
+		user, err := database.GetUser(message.From.Id)
+		if err != nil {
+			log.Printf("Failed to get user info: %v", err)
+			_, err := message.Reply(b, "❌ Error retrieving user information.", nil)
+			return err
 		}
 
-		response := fmt.Sprintf("🔔 *Alerts Setting*\n\n👤 **User:** %s (@%s)\n🔔 **Status:** %s\n\nℹ️ *Note:* Alert preferences are now session-based. Use this command to confirm your authentication.",
+		// Create user record if it doesn't exist
+		if user == nil {
+			user = &db.User{
+				ID:            message.From.Id,
+				Username:      message.From.Username,
+				FirstName:     message.From.FirstName,
+				LastName:      message.From.LastName,
+				FirstAuthAt:   time.Now(),
+				LastAuthAt:    time.Now(),
+				AlertsEnabled: (action == "on"),
+				CreatedAt:     time.Now(),
+			}
+			if err := database.UpdateUser(user); err != nil {
+				log.Printf("Failed to create user record: %v", err)
+				_, err := message.Reply(b, "❌ Failed to create user record.", nil)
+				return err
+			}
+		} else {
+			// Update existing user's alert preference
+			user.AlertsEnabled = (action == "on")
+			user.LastAuthAt = time.Now()
+			if err := database.UpdateUser(user); err != nil {
+				log.Printf("Failed to update user record: %v", err)
+				_, err := message.Reply(b, "❌ Failed to update user record.", nil)
+				return err
+			}
+		}
+
+		status := "🔕 Disabled"
+		if user.AlertsEnabled {
+			status = "🔔 Enabled"
+		}
+
+		response := fmt.Sprintf("🔔 *Alerts Setting*\n\n👤 **User:** %s (@%s)\n🔔 **Status:** %s",
 			message.From.FirstName, message.From.Username, status)
 
-		_, err := message.Reply(b, response, &gotgbot.SendMessageOpts{
+		_, err = message.Reply(b, response, &gotgbot.SendMessageOpts{
 			ParseMode: "markdown",
 		})
 		if err != nil {
