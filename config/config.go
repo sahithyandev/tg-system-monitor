@@ -8,6 +8,63 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// getDefaultConfig loads the default configuration from config-sample.yml
+func getDefaultConfig(configDir string) *Config {
+	// Try to find config-sample.yml relative to the working directory
+	defaultConfigPath := "config-sample.yml"
+	
+	data, err := os.ReadFile(defaultConfigPath)
+	if err != nil {
+		// Fallback to hardcoded defaults if config-sample.yml is not found
+		return &Config{
+			PollInterval:         15,
+			CPUThresholdPercent:  85,
+			CPURecoveryPercent:   70,
+			CPUSustainSeconds:    300,
+			MemThresholdPercent:  90,
+			MemRecoveryPercent:   80,
+			MemSustainSeconds:    180,
+			SwapThresholdPercent: 25,
+			SwapRecoveryPercent:  10,
+			SwapSustainSeconds:   180,
+			DiskThresholdPercent: 95,
+			DiskRecoveryPercent:  90,
+			AlertCooldownSeconds: 1800,
+			TopProcessCount:      5,
+			DBPath:               filepath.Join(configDir, "telemon.db"),
+		}
+	}
+
+	var c Config
+	if err := yaml.Unmarshal(data, &c); err != nil {
+		// Fallback to hardcoded defaults if unmarshaling fails
+		return &Config{
+			PollInterval:         15,
+			CPUThresholdPercent:  85,
+			CPURecoveryPercent:   70,
+			CPUSustainSeconds:    300,
+			MemThresholdPercent:  90,
+			MemRecoveryPercent:   80,
+			MemSustainSeconds:    180,
+			SwapThresholdPercent: 25,
+			SwapRecoveryPercent:  10,
+			SwapSustainSeconds:   180,
+			DiskThresholdPercent: 95,
+			DiskRecoveryPercent:  90,
+			AlertCooldownSeconds: 1800,
+			TopProcessCount:      5,
+			DBPath:               filepath.Join(configDir, "telemon.db"),
+		}
+	}
+
+	// Ensure DBPath uses the config directory
+	if c.DBPath == "" {
+		c.DBPath = filepath.Join(configDir, "telemon.db")
+	}
+
+	return &c
+}
+
 type Config struct {
 	BotToken         string `yaml:"bot_token"`
 	JoinPasswordHash string `yaml:"join_password_hash"`
@@ -78,24 +135,8 @@ func Load() (*Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			// Return default config if file doesn't exist
-			return &Config{
-				PollInterval:         15,
-				CPUThresholdPercent:  85,
-				CPURecoveryPercent:   70,
-				CPUSustainSeconds:    300,
-				MemThresholdPercent:  90,
-				MemRecoveryPercent:   80,
-				MemSustainSeconds:    180,
-				SwapThresholdPercent: 25,
-				SwapRecoveryPercent:  10,
-				SwapSustainSeconds:   180,
-				DiskThresholdPercent: 95,
-				DiskRecoveryPercent:  90,
-				AlertCooldownSeconds: 1800,
-				TopProcessCount:      5,
-				DBPath:               filepath.Join(configDir, "telemon.db"),
-			}, nil
+			// Return default config from config-sample.yml if file doesn't exist
+			return getDefaultConfig(configDir), nil
 		}
 		return nil, fmt.Errorf("failed to read config file: %w", err)
 	}

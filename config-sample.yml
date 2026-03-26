@@ -1,0 +1,40 @@
+# Copy this file to ~/.config/tg-system-monitor/config.yml
+# Replace YOUR_BOT_TOKEN with your actual Telegram bot token
+
+# Required: Get from @BotFather on Telegram
+bot_token: "YOUR_BOT_TOKEN_HERE"
+
+# Optional: Hash of password for users to join the bot (use bcrypt or SHA-256)
+join_password_hash: ""
+
+# Optional: Override hostname detection
+hostname_override: ""
+
+# Optional: How often to poll for system metrics (seconds)
+poll_interval_seconds: 15
+
+# CPU monitoring thresholds
+cpu_threshold_percent: 85.0
+cpu_recovery_percent: 70.0
+cpu_sustain_seconds: 300
+
+# Memory monitoring thresholds  
+mem_threshold_percent: 90.0
+mem_recovery_percent: 80.0
+mem_sustain_seconds: 180
+
+# Swap monitoring thresholds
+swap_threshold_percent: 25.0
+swap_recovery_percent: 10.0
+swap_sustain_seconds: 180
+
+# Disk monitoring thresholds
+disk_threshold_percent: 95.0
+disk_recovery_percent: 90.0
+
+# Alert settings
+alert_cooldown_seconds: 1800
+top_process_count: 5
+
+# Database path
+db_path: "~/.config/tg-system-monitor/telemon.db"
