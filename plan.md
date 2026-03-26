@@ -1,14 +1,7 @@
-## Recommended shape
-
-Each Linux machine runs its **own independent bot instance**.
-
 Each instance:
 
-* monitors only its own machine
-* stores its own allowlist and settings in local SQLite
 * sends alerts only for that machine
 * responds to Telegram commands for that machine
-* does not depend on any central coordinator
 
 That matches your “one bot per instance” requirement exactly.
 
@@ -27,13 +20,7 @@ That matches your “one bot per instance” requirement exactly.
 ### Telegram commands
 
 * `/start` — intro and help
-* `/join <password>` — join allowlist
-* `/leave` — leave allowlist / disable alerts
-* `/status` — current system resource summary
 * `/top` — top CPU / memory consumers
-* `/alerts on` — enable alert broadcasts
-* `/alerts off` — disable alert broadcasts
-* `/ping` — health check
 
 ### Broadcast list
 
@@ -59,17 +46,6 @@ Prefer:
 * local SQLite DB under `/var/lib/...` or `/opt/...`
 
 Long polling is simpler and usually fine for one bot per server.
-
-
-# 3. Suggested tech stack
-
-## Libraries
-
-* Telegram Bot API client for Go
-* system metrics:
-
-  * either standard Linux `/proc` parsing
-  * or a lightweight library like `gopsutil`
 
 # 4. High-level architecture
 
@@ -153,8 +129,6 @@ Use an in-memory rolling window plus persisted alert state in SQLite.
    * mark inactive
    * send recovery message
 
----
-
 # 9. Telegram command plan
 
 ## Public commands
@@ -166,18 +140,6 @@ Returns:
 * what this bot monitors
 * how to join
 * command list
-
-### `/join <password>`
-
-Behavior:
-
-* only valid in private chat
-* compare password hash with stored configured hash
-* on success:
-
-  * add/update user row
-  * set `is_allowed=1`
-  * set `alerts_enabled=1`
 
 ## Restricted commands
 
@@ -414,11 +376,6 @@ On restart:
 * Telegram polling
 * `/start`, `/join`, `/leave`, `/whoami`
 
-## Phase 2 — system metrics
-
-* CPU, memory, disk, load, uptime
-* `/status`
-
 ## Phase 3 — alert engine
 
 * rolling windows
@@ -465,8 +422,6 @@ On restart:
 
 ## Manual tests
 
-* join with correct and incorrect password
-* request `/status`
 * induce CPU load and verify alert
 * induce recovery and verify recovery message
 * restart service and verify persistence
@@ -474,7 +429,4 @@ On restart:
 ## My default recommendation if you want me to proceed without waiting
 
 * long polling
-* private-chat only
-* `/`, CPU, memory, swap, load, uptime
-* no local history table initially
 * only these commands: `/start /join /leave /status /top /alerts /whoami /ping`

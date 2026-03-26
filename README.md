@@ -7,7 +7,7 @@ A simple and lightweight system monitor that interfaces through Telegram. Writte
 ### Build
 
 ```sh
-go build main.go
+go build -o tgsm main.go
 ```
 
 ### Test
