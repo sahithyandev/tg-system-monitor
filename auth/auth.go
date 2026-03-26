@@ -33,8 +33,7 @@ var restrictedCommands = map[string]bool{
 	"allow":    true,
 	"disallow": true,
 	"alerts":   true,
-	"config":   true,
-	"shutdown": true,
+	"status":   true,
 }
 
 type AuthManager struct {
@@ -149,7 +148,19 @@ func (am *AuthManager) AuthenticateUser(userID int64, username string, command s
 		return AuthResult{Authorized: true, Reason: "Command is not restricted"}
 	}
 
-	// Check failed authentication attempts
+	// Check if user is already authenticated (exists in database)
+	user, err := am.db.GetUser(userID)
+	if err != nil {
+		log.Printf("Failed to get user from database: %v", err)
+		return AuthResult{Authorized: false, Reason: "Authentication system error"}
+	}
+
+	// If user exists, they are authenticated - allow access without password
+	if user != nil {
+		return AuthResult{Authorized: true, Reason: "User is authenticated"}
+	}
+
+	// User not authenticated, check failed authentication attempts
 	failCount, lastFail, err := am.db.GetFailedAuth(userID)
 	if err != nil {
 		log.Printf("Failed to get auth attempts for user %d: %v", userID, err)
@@ -193,6 +204,22 @@ func (am *AuthManager) AuthenticateUser(userID int64, username string, command s
 	}
 
 	return AuthResult{Authorized: true, Reason: "Authentication successful"}
+}
+
+// CreateAuthenticatedUser creates a user record after successful authentication
+func (am *AuthManager) CreateAuthenticatedUser(userID int64, username, firstName, lastName string) error {
+	user := &db.User{
+		ID:            userID,
+		Username:      username,
+		FirstName:     firstName,
+		LastName:      lastName,
+		FirstAuthAt:   time.Now(),
+		LastAuthAt:    time.Now(),
+		AlertsEnabled: true,
+		CreatedAt:     time.Now(),
+	}
+
+	return am.db.UpdateUser(user)
 }
 
 // GetDatabase returns the database instance for the auth manager

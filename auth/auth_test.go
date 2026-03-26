@@ -54,7 +54,7 @@ func TestIsRestrictedCommand(t *testing.T) {
 	authManager := &AuthManager{}
 
 	// Test restricted commands
-	restricted := []string{"join", "leave", "allow", "disallow", "alerts", "config", "shutdown"}
+	restricted := []string{"join", "leave", "allow", "disallow", "alerts", "status"}
 	for _, cmd := range restricted {
 		if !authManager.IsRestrictedCommand(cmd) {
 			t.Errorf("Command %s should be restricted", cmd)
@@ -84,8 +84,7 @@ func TestGetRestrictedCommands(t *testing.T) {
 		"allow":    true,
 		"disallow": true,
 		"alerts":   true,
-		"config":   true,
-		"shutdown": true,
+		"status":   true,
 	}
 
 	for _, cmd := range commands {

@@ -7,7 +7,9 @@ import (
 	"time"
 
 	"tg-system-monitor/auth"
+	"tg-system-monitor/config"
 	"tg-system-monitor/db"
+	"tg-system-monitor/formatter"
 
 	"github.com/PaulSonOfLars/gotgbot/v2"
 	"github.com/PaulSonOfLars/gotgbot/v2/ext"
@@ -49,6 +51,31 @@ func authMiddleware(authManager *auth.AuthManager, handler func(b *gotgbot.Bot, 
 				log.Printf("Failed to send auth denial message: %v", err)
 			}
 			return nil
+		}
+
+		// If this was a password authentication (user didn't exist before), create user record
+		if result.Reason == "Authentication successful" && password != "" {
+			if err := authManager.CreateAuthenticatedUser(
+				message.From.Id,
+				message.From.Username,
+				message.From.FirstName,
+				message.From.LastName,
+			); err != nil {
+				log.Printf("Failed to create authenticated user record: %v", err)
+				_, err := message.Reply(b, "❌ Failed to create authentication record.", nil)
+				return err
+			}
+
+			// Send authentication success message
+			response := fmt.Sprintf("✅ *Authentication Successful*\n\n👤 **User:** %s (@%s)\n🆔 **ID:** `%d`\n🔐 **Status:** Authorized to use restricted commands",
+				message.From.FirstName, message.From.Username, message.From.Id)
+
+			_, err := message.Reply(b, response, &gotgbot.SendMessageOpts{
+				ParseMode: "markdown",
+			})
+			if err != nil {
+				log.Printf("Failed to send auth success message: %v", err)
+			}
 		}
 
 		// Call the original handler
@@ -293,4 +320,43 @@ func alertsHandler(authManager *auth.AuthManager, database *db.DB) func(b *gotgb
 		log.Printf("Alerts %s for user %s (@%s)", action, message.From.FirstName, message.From.Username)
 		return nil
 	})
+}
+
+// statusHandler handles /status command with authentication
+func statusHandler(database *db.DB, cfg *config.Config) func(b *gotgbot.Bot, ctx *ext.Context) error {
+	return func(b *gotgbot.Bot, ctx *ext.Context) error {
+		message := ctx.EffectiveMessage
+		if message == nil {
+			return nil
+		}
+
+		log.Printf("Received /status command from %s (@%s)",
+			message.From.FirstName,
+			message.From.Username)
+
+		// Get latest metric from database
+		sample, err := database.GetLatestMetric()
+		if err != nil {
+			log.Printf("Failed to get latest metric: %v", err)
+			_, err := message.Reply(b, "Error retrieving system metrics.", nil)
+			return err
+		}
+
+		if sample == nil {
+			_, err := message.Reply(b, "No system metrics available yet.", nil)
+			return err
+		}
+
+		// Format status message using the existing formatter
+		response := formatter.FormatStatus(sample)
+
+		_, err = message.Reply(b, response, nil)
+		if err != nil {
+			log.Printf("Failed to send status reply: %v", err)
+			return err
+		}
+
+		log.Printf("Sent status reply to %s", message.From.FirstName)
+		return nil
+	}
 }
