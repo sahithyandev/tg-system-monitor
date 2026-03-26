@@ -4,7 +4,8 @@
 # Required: Get from @BotFather on Telegram
 bot_token: "YOUR_BOT_TOKEN_HERE"
 
-# Optional: Hash of password for users to join the bot (use bcrypt or SHA-256)
+# Optional: Hash of password for users to join the bot
+# DO NOT EDIT MANUALLY. USE `set-password` TO DO SO. 
 join_password_hash: ""
 
 # Optional: Override hostname detection

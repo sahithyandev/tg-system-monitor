@@ -157,7 +157,7 @@ func allowHandler(authManager *auth.AuthManager, database *db.DB) func(b *gotgbo
 			message.From.FirstName, message.From.Username)
 
 		// Get user info for response
-		user, err := database.GetUser(message.From.Id)
+		_, err := database.GetUser(message.From.Id)
 		if err != nil {
 			log.Printf("Failed to get user info: %v", err)
 			_, err := message.Reply(b, "❌ Error retrieving user information.", nil)
@@ -192,7 +192,7 @@ func disallowHandler(authManager *auth.AuthManager, database *db.DB) func(b *got
 			message.From.FirstName, message.From.Username)
 
 		// Get user info for response
-		user, err := database.GetUser(message.From.Id)
+		_, err := database.GetUser(message.From.Id)
 		if err != nil {
 			log.Printf("Failed to get user info: %v", err)
 			_, err := message.Reply(b, "❌ Error retrieving user information.", nil)
