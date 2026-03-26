@@ -355,3 +355,25 @@ func (db *DB) GetRecentSamples(n int) (int, error) {
 	err := db.conn.QueryRow("SELECT COUNT(*) FROM (SELECT 1 FROM metric_samples LIMIT ?)", n).Scan(&count)
 	return count, err
 }
+
+func (db *DB) GetLatestMetric() (*metrics.MetricSample, error) {
+	var s metrics.MetricSample
+	var tsUnix int64
+
+	err := db.conn.QueryRow(`
+		SELECT ts_unix, cpu_percent, mem_percent, swap_percent, disk_percent, load1, load5, load15
+		FROM metric_samples 
+		ORDER BY ts_unix DESC 
+		LIMIT 1
+	`).Scan(&tsUnix, &s.CPUPercent, &s.MemPercent, &s.SwapPercent, &s.DiskPercent, &s.Load1, &s.Load5, &s.Load15)
+
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	s.Timestamp = time.Unix(tsUnix, 0)
+	return &s, nil
+}

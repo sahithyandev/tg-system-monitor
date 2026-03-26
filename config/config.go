@@ -12,7 +12,7 @@ import (
 func getDefaultConfig(configDir string) *Config {
 	// Try to find config-sample.yml relative to the working directory
 	defaultConfigPath := "config-sample.yml"
-	
+
 	data, err := os.ReadFile(defaultConfigPath)
 	if err != nil {
 		// Fallback to hardcoded defaults if config-sample.yml is not found

@@ -64,6 +64,9 @@ func New(cfg *config.Config, database *db.DB) (*Bot, error) {
 	// Register whoami command handler
 	dispatcher.AddHandler(handlers.NewCommand("whoami", whoamiHandler(database)))
 
+	// Register status command handler
+	dispatcher.AddHandler(handlers.NewCommand("status", statusHandler(database, cfg)))
+
 	// Register restricted command handlers with authentication
 	dispatcher.AddHandler(handlers.NewCommand("join", joinHandler(b.auth, database)))
 	dispatcher.AddHandler(handlers.NewCommand("leave", leaveHandler(b.auth, database)))

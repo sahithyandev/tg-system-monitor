@@ -62,10 +62,9 @@ func TestFormatStatus(t *testing.T) {
 		Load15:      0.88,
 	}
 
-	result := FormatStatus("web-01", sample)
+	result := FormatStatus(sample)
 
 	expectedParts := []string{
-		"Host: web-01",
 		"Uptime: 01h 01m 01s",
 		"CPU: 22.4%",
 		"Memory: 61.8%",

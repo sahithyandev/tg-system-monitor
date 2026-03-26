@@ -37,9 +37,8 @@ func FormatDuration(seconds float64) string {
 	return fmt.Sprintf("%02dm %02ds", minutes, seconds_remain)
 }
 
-func FormatStatus(hostname string, sample *metrics.MetricSample) string {
+func FormatStatus(sample *metrics.MetricSample) string {
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("Host: %s\n", hostname))
 	sb.WriteString(fmt.Sprintf("Uptime: %s\n\n", FormatDuration(sample.Uptime)))
 
 	sb.WriteString(fmt.Sprintf("CPU: %.1f%%\n", sample.CPUPercent))

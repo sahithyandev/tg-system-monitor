@@ -5,7 +5,9 @@ import (
 	"log"
 	"time"
 
+	"tg-system-monitor/config"
 	"tg-system-monitor/db"
+	"tg-system-monitor/formatter"
 
 	"github.com/PaulSonOfLars/gotgbot/v2"
 	"github.com/PaulSonOfLars/gotgbot/v2/ext"
@@ -133,6 +135,45 @@ func whoamiHandler(database *db.DB) func(b *gotgbot.Bot, ctx *ext.Context) error
 		}
 
 		log.Printf("Sent whoami reply to %s", message.From.FirstName)
+		return nil
+	}
+}
+
+// statusHandler handles /status command
+func statusHandler(database *db.DB, cfg *config.Config) func(b *gotgbot.Bot, ctx *ext.Context) error {
+	return func(b *gotgbot.Bot, ctx *ext.Context) error {
+		message := ctx.EffectiveMessage
+		if message == nil {
+			return nil
+		}
+
+		log.Printf("Received /status command from %s (@%s)",
+			message.From.FirstName,
+			message.From.Username)
+
+		// Get latest metric from database
+		sample, err := database.GetLatestMetric()
+		if err != nil {
+			log.Printf("Failed to get latest metric: %v", err)
+			_, err := message.Reply(b, "Error retrieving system metrics.", nil)
+			return err
+		}
+
+		if sample == nil {
+			_, err := message.Reply(b, "No system metrics available yet.", nil)
+			return err
+		}
+
+		// Format status message using the existing formatter
+		response := formatter.FormatStatus(sample)
+
+		_, err = message.Reply(b, response, nil)
+		if err != nil {
+			log.Printf("Failed to send status reply: %v", err)
+			return err
+		}
+
+		log.Printf("Sent status reply to %s", message.From.FirstName)
 		return nil
 	}
 }
