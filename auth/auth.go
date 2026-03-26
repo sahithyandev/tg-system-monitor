@@ -187,66 +187,12 @@ func (am *AuthManager) AuthenticateUser(userID int64, username string, command s
 		return AuthResult{Authorized: false, Reason: "Invalid password"}
 	}
 
-	// Check if user is in allowlist
-	user, err := am.db.GetUser(userID)
-	if err != nil {
-		log.Printf("Failed to get user %d from database: %v", userID, err)
-		return AuthResult{Authorized: false, Reason: "Database error"}
-	}
-
-	if user == nil || !user.IsAllowed {
-		if err := am.db.IncrementFailedAuth(userID); err != nil {
-			log.Printf("Failed to increment auth attempts for user %d: %v", userID, err)
-		}
-		return AuthResult{Authorized: false, Reason: "User not in allowlist"}
-	}
-
 	// Reset failed attempts on successful authentication
 	if err := am.db.ResetFailedAuth(userID); err != nil {
 		log.Printf("Failed to reset auth attempts for user %d: %v", userID, err)
 	}
 
 	return AuthResult{Authorized: true, Reason: "Authentication successful"}
-}
-
-// AddUserToAllowlist adds a user to the allowlist
-func (am *AuthManager) AddUserToAllowlist(userID int64, username, firstName, lastName string) error {
-	user := &db.User{
-		ID:            userID,
-		Username:      username,
-		FirstName:     firstName,
-		LastName:      lastName,
-		JoinedAt:      time.Now(),
-		IsAllowed:     true,
-		LastSeenAt:    time.Now(),
-		AlertsEnabled: true, // Enable alerts by default
-	}
-
-	return am.db.UpdateUser(user)
-}
-
-// RemoveUserFromAllowlist removes a user from the allowlist
-func (am *AuthManager) RemoveUserFromAllowlist(userID int64) error {
-	user, err := am.db.GetUser(userID)
-	if err != nil {
-		return fmt.Errorf("failed to get user: %w", err)
-	}
-	if user == nil {
-		return fmt.Errorf("user not found")
-	}
-
-	user.IsAllowed = false
-	user.LastSeenAt = time.Now()
-	return am.db.UpdateUser(user)
-}
-
-// IsUserAllowed checks if a user is in the allowlist
-func (am *AuthManager) IsUserAllowed(userID int64) (bool, error) {
-	user, err := am.db.GetUser(userID)
-	if err != nil {
-		return false, err
-	}
-	return user != nil && user.IsAllowed, nil
 }
 
 // GetDatabase returns the database instance for the auth manager

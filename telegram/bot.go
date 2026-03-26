@@ -9,6 +9,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"tg-system-monitor/auth"
 	"tg-system-monitor/config"
 	"tg-system-monitor/db"
 
@@ -24,6 +25,7 @@ type Bot struct {
 	cancel         context.CancelFunc
 	done           chan struct{}
 	db             *db.DB
+	auth           *auth.AuthManager
 	lastMetricTime atomic.Value // stores time.Time
 }
 
@@ -51,6 +53,7 @@ func New(cfg *config.Config, database *db.DB) (*Bot, error) {
 		bot:     bot,
 		updater: updater,
 		db:      database,
+		auth:    auth.NewAuthManager(database, cfg.JoinPasswordHash),
 		done:    make(chan struct{}),
 	}
 	b.lastMetricTime.Store(time.Time{}) // Initialize with zero time
@@ -60,6 +63,13 @@ func New(cfg *config.Config, database *db.DB) (*Bot, error) {
 
 	// Register whoami command handler
 	dispatcher.AddHandler(handlers.NewCommand("whoami", whoamiHandler(database)))
+
+	// Register restricted command handlers with authentication
+	dispatcher.AddHandler(handlers.NewCommand("join", joinHandler(b.auth, database)))
+	dispatcher.AddHandler(handlers.NewCommand("leave", leaveHandler(b.auth, database)))
+	dispatcher.AddHandler(handlers.NewCommand("allow", allowHandler(b.auth, database)))
+	dispatcher.AddHandler(handlers.NewCommand("disallow", disallowHandler(b.auth, database)))
+	dispatcher.AddHandler(handlers.NewCommand("alerts", alertsHandler(b.auth, database)))
 
 	// Register echo handler for all text messages
 	dispatcher.AddHandler(handlers.NewMessage(message.Text, echoHandler))
