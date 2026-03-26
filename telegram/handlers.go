@@ -79,3 +79,60 @@ func pingHandler(database *db.DB, getLastMetricTime func() time.Time) func(b *go
 		return nil
 	}
 }
+
+// whoamiHandler handles /whoami command
+func whoamiHandler(database *db.DB) func(b *gotgbot.Bot, ctx *ext.Context) error {
+	return func(b *gotgbot.Bot, ctx *ext.Context) error {
+		message := ctx.EffectiveMessage
+		if message == nil {
+			return nil
+		}
+
+		log.Printf("Received /whoami command from %s (@%s)",
+			message.From.FirstName,
+			message.From.Username)
+
+		// Get user from database
+		user, err := database.GetUser(message.From.Id)
+		if err != nil {
+			log.Printf("Failed to get user from database: %v", err)
+			_, err := message.Reply(b, "Error retrieving user information.", nil)
+			return err
+		}
+
+		// Determine user status
+		var allowedStatus, alertsStatus string
+		if user != nil && user.IsAllowed {
+			allowedStatus = "✅ Authorized"
+		} else {
+			allowedStatus = "✅ Authorized" // For now, allow all users
+		}
+
+		if user != nil && user.AlertsEnabled {
+			alertsStatus = "🔔 Enabled"
+		} else {
+			alertsStatus = "🔕 Disabled"
+		}
+
+		// Format username
+		username := message.From.Username
+		if username == "" {
+			username = "none"
+		}
+
+		// Create whoami response
+		response := fmt.Sprintf("👤 *Your Profile*\n\n🆔 **ID:** `%d`\n👋 **Username:** @%s\n🔐 **Access:** %s\n🔔 **Alerts:** %s",
+			message.From.Id, username, allowedStatus, alertsStatus)
+
+		_, err = message.Reply(b, response, &gotgbot.SendMessageOpts{
+			ParseMode: "markdown",
+		})
+		if err != nil {
+			log.Printf("Failed to send whoami reply: %v", err)
+			return err
+		}
+
+		log.Printf("Sent whoami reply to %s", message.From.FirstName)
+		return nil
+	}
+}

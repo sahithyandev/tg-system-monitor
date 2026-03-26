@@ -58,6 +58,9 @@ func New(cfg *config.Config, database *db.DB) (*Bot, error) {
 	// Register ping command handler
 	dispatcher.AddHandler(handlers.NewCommand("ping", pingHandler(database, b.GetLastMetricTime)))
 
+	// Register whoami command handler
+	dispatcher.AddHandler(handlers.NewCommand("whoami", whoamiHandler(database)))
+
 	// Register echo handler for all text messages
 	dispatcher.AddHandler(handlers.NewMessage(message.Text, echoHandler))
 

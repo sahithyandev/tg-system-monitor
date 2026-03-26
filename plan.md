@@ -33,7 +33,6 @@ That matches your “one bot per instance” requirement exactly.
 * `/top` — top CPU / memory consumers
 * `/alerts on` — enable alert broadcasts
 * `/alerts off` — disable alert broadcasts
-* `/whoami` — show auth/subscription status
 * `/ping` — health check
 
 ### Broadcast list
@@ -228,15 +227,6 @@ Set `alerts_enabled=1`
 ### `/alerts off`
 
 Set `alerts_enabled=0`
-
-### `/whoami`
-
-Return:
-
-* allowed yes/no
-* alerts enabled yes/no
-* Telegram user ID
-* username
 
 # 10. Authentication design
 
