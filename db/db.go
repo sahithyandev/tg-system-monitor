@@ -5,8 +5,9 @@ import (
 	"fmt"
 	"log"
 	"math"
-	"tg-system-monitor/metrics"
 	"time"
+
+	"tg-system-monitor/metrics"
 
 	_ "modernc.org/sqlite"
 )
@@ -52,6 +53,10 @@ func (db *DB) Close() error {
 	return db.conn.Close()
 }
 
+func (db *DB) GetConn() *sql.DB {
+	return db.conn
+}
+
 func (db *DB) Ping() error {
 	return db.conn.Ping()
 }
@@ -95,6 +100,9 @@ func (db *DB) migrate() error {
 			load15 REAL,
 			uptime REAL
 		);`,
+		`CREATE INDEX IF NOT EXISTS idx_alert_state_active ON alert_state(is_active);`,
+		`CREATE INDEX IF NOT EXISTS idx_alert_state_last_triggered ON alert_state(last_triggered_unix);`,
+		`CREATE INDEX IF NOT EXISTS idx_metric_samples_ts ON metric_samples(ts_unix DESC);`,
 	}
 
 	for _, q := range queries {
