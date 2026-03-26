@@ -91,7 +91,20 @@ func joinHandler(authManager *auth.AuthManager, database *db.DB) func(b *gotgbot
 			return nil
 		}
 
-		log.Printf("Received /join command from %s (@%s)",
+		// Check if command is used in a private chat
+		if message.Chat.Type != "private" {
+			_, err := message.Reply(b, "🚫 *Access Denied*\n\nThe `/join` command can only be used in private chats.", &gotgbot.SendMessageOpts{
+				ParseMode: "markdown",
+			})
+			if err != nil {
+				log.Printf("Failed to send private chat denial message: %v", err)
+			}
+			log.Printf("Rejected /join command from non-private chat (type: %s) by user %s (@%s)",
+				message.Chat.Type, message.From.FirstName, message.From.Username)
+			return nil
+		}
+
+		log.Printf("Received /join command from %s (@%s) in private chat",
 			message.From.FirstName, message.From.Username)
 
 		// Create or update user record in database

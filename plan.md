@@ -83,11 +83,6 @@ Long polling is simpler and usually fine for one bot per server.
 * start monitor loop
 * handle graceful shutdown
 
-### 4) `auth`
-
-* verify `/join <password>`
-* enforce allowlist on restricted commands
-
 ### 6) `detector`
 
 Converts metric samples into alerts:
@@ -95,12 +90,6 @@ Converts metric samples into alerts:
 * sustained threshold detection
 * cooldown suppression
 * recovery detection
-
-### 7) `telegram`
-
-* route commands
-* send direct replies
-* broadcast alerts to all subscribed users
 
 # 6. Monitoring model
 
@@ -199,20 +188,6 @@ Behavior:
 
 Require `is_allowed=1`.
 
-### `/status`
-
-Return:
-
-* hostname
-* uptime
-* CPU %
-* memory %
-* swap %
-* disk usage for `/`
-* load average
-* alert states
-* timestamp
-
 ### `/top`
 
 Return:
@@ -227,28 +202,6 @@ Set `alerts_enabled=1`
 ### `/alerts off`
 
 Set `alerts_enabled=0`
-
-# 10. Authentication design
-
-## Password join flow
-
-Store in config:
-
-* **bcrypt hash** or **SHA-256 hash** of the join password
-
-Do not store plain password in DB.
-
-## Rules
-
-* only allow `/join` in private chats
-* rate limit failed join attempts
-* optionally lock out for a few minutes after repeated failures
-
-## Why this is enough
-
-For a per-instance bot, this is a reasonable simple access control model.
-
----
 
 # 11. Message design
 
