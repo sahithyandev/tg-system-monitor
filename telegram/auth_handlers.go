@@ -152,27 +152,17 @@ func leaveHandler(authManager *auth.AuthManager, database *db.DB) func(b *gotgbo
 		log.Printf("Received /leave command from %s (@%s)",
 			message.From.FirstName, message.From.Username)
 
-		// Update user's last authentication time
-		user, err := database.GetUser(message.From.Id)
-		if err != nil {
-			log.Printf("Failed to get user info: %v", err)
-			_, err := message.Reply(b, "❌ Error retrieving user information.", nil)
-			return err
+		// Delete user from database
+		if err := database.DeleteUser(message.From.Id); err != nil {
+			log.Printf("Failed to delete user record: %v", err)
+			_, replyErr := message.Reply(b, "❌ Failed to delete user record.", nil)
+			return replyErr
 		}
 
-		if user != nil {
-			user.LastAuthAt = time.Now()
-			if err := database.UpdateUser(user); err != nil {
-				log.Printf("Failed to update user auth record: %v", err)
-				_, err := message.Reply(b, "❌ Failed to update authentication record.", nil)
-				return err
-			}
-		}
-
-		response := fmt.Sprintf("👋 *Session Ended*\n\n👤 **User:** %s (@%s)\n🆔 **ID:** `%d`\n🔐 **Status:** Authentication session completed",
+		response := fmt.Sprintf("👋 *User Removed*\n\n👤 **User:** %s (@%s)\n🆔 **ID:** `%d`\n🔐 **Status:** User record deleted from system",
 			message.From.FirstName, message.From.Username, message.From.Id)
 
-		_, err = message.Reply(b, response, &gotgbot.SendMessageOpts{
+		_, err := message.Reply(b, response, &gotgbot.SendMessageOpts{
 			ParseMode: "markdown",
 		})
 		if err != nil {
@@ -180,7 +170,7 @@ func leaveHandler(authManager *auth.AuthManager, database *db.DB) func(b *gotgbo
 			return err
 		}
 
-		log.Printf("User %s (@%s) session ended", message.From.FirstName, message.From.Username)
+		log.Printf("User %s (@%s) deleted from database", message.From.FirstName, message.From.Username)
 		return nil
 	})
 }

@@ -179,11 +179,6 @@ Behavior:
   * set `is_allowed=1`
   * set `alerts_enabled=1`
 
-### `/leave`
-
-* set `is_allowed=0`
-* set `alerts_enabled=0`
-
 ## Restricted commands
 
 Require `is_allowed=1`.
@@ -195,31 +190,7 @@ Return:
 * top N CPU processes
 * top N memory processes
 
-### `/alerts on`
-
-Set `alerts_enabled=1`
-
-### `/alerts off`
-
-Set `alerts_enabled=0`
-
 # 11. Message design
-
-## Status message example
-
-```text
-Host: web-01
-Uptime: 4d 03h 15m
-
-CPU: 22.4%
-Memory: 61.8%
-Swap: 0.0%
-Disk /: 74.1%
-Load avg: 0.84 0.92 0.88
-
-Active alerts: none
-Updated: 2026-03-25 14:10:03
-```
 
 ## Alert message example
 
@@ -285,16 +256,6 @@ Optional:
 * list of monitored mountpoints
 * admin Telegram IDs
 * timezone override
-
----
-
-# 13. Deployment plan
-
-## Binary
-
-Compile a single Linux binary:
-
-* `telemon`
 
 ## Filesystem layout
 

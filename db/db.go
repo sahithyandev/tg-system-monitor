@@ -230,6 +230,11 @@ func (db *DB) UpdateUser(u *User) error {
 	return err
 }
 
+func (db *DB) DeleteUser(id int64) error {
+	_, err := db.conn.Exec("DELETE FROM users WHERE telegram_user_id = ?", id)
+	return err
+}
+
 func (db *DB) GetAllowedUsers() ([]User, error) {
 	rows, err := db.conn.Query(`SELECT telegram_user_id, alerts_enabled, first_auth_at FROM users ORDER BY last_auth_at DESC`)
 	if err != nil {
