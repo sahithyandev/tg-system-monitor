@@ -92,7 +92,8 @@ func (db *DB) migrate() error {
 			disk_percent REAL,
 			load1 REAL,
 			load5 REAL,
-			load15 REAL
+			load15 REAL,
+			uptime REAL
 		);`,
 	}
 
@@ -338,11 +339,12 @@ func (db *DB) SaveMetricSample(s *metrics.MetricSample) error {
 	l1 := round(s.Load1)
 	l5 := round(s.Load5)
 	l15 := round(s.Load15)
+	uptime := round(s.Uptime)
 
 	_, err := db.conn.Exec(`
-		INSERT INTO metric_samples (ts_unix, cpu_percent, mem_percent, swap_percent, disk_percent, load1, load5, load15)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-		s.Timestamp.Unix(), cpu, mem, swap, disk, l1, l5, l15)
+		INSERT INTO metric_samples (ts_unix, cpu_percent, mem_percent, swap_percent, disk_percent, load1, load5, load15, uptime)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		s.Timestamp.Unix(), cpu, mem, swap, disk, l1, l5, l15, uptime)
 	return err
 }
 
@@ -361,11 +363,11 @@ func (db *DB) GetLatestMetric() (*metrics.MetricSample, error) {
 	var tsUnix int64
 
 	err := db.conn.QueryRow(`
-		SELECT ts_unix, cpu_percent, mem_percent, swap_percent, disk_percent, load1, load5, load15
+		SELECT ts_unix, cpu_percent, mem_percent, swap_percent, disk_percent, load1, load5, load15, uptime
 		FROM metric_samples 
 		ORDER BY ts_unix DESC 
 		LIMIT 1
-	`).Scan(&tsUnix, &s.CPUPercent, &s.MemPercent, &s.SwapPercent, &s.DiskPercent, &s.Load1, &s.Load5, &s.Load15)
+	`).Scan(&tsUnix, &s.CPUPercent, &s.MemPercent, &s.SwapPercent, &s.DiskPercent, &s.Load1, &s.Load5, &s.Load15, &s.Uptime)
 
 	if err == sql.ErrNoRows {
 		return nil, nil
