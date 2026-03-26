@@ -27,13 +27,6 @@ func main() {
 		log.Fatal("Bot token is required in config")
 	}
 
-	// Initialize telegram bot
-	fmt.Println("Initializing Telegram bot...")
-	tgBot, err := telegram.New(cfg)
-	if err != nil {
-		log.Fatalf("Failed to initialize telegram bot: %v\n", err)
-	}
-
 	collector := metrics.NewCollector()
 
 	fmt.Printf("Initializing Database at %s...\n", cfg.DBPath)
@@ -42,6 +35,13 @@ func main() {
 		log.Fatalf("DB Init Error: %v\n", err)
 	}
 	defer database.Close()
+
+	// Initialize telegram bot
+	fmt.Println("Initializing Telegram bot...")
+	tgBot, err := telegram.New(cfg, database)
+	if err != nil {
+		log.Fatalf("Failed to initialize telegram bot: %v\n", err)
+	}
 
 	// Create context for graceful shutdown
 	ctx, cancel := context.WithCancel(context.Background())
@@ -75,6 +75,9 @@ func main() {
 				log.Printf("DB Save Error: %v\n", err)
 				return
 			}
+
+			// Update last metric time in bot
+			tgBot.UpdateLastMetricTime(sample.Timestamp)
 
 			fmt.Printf("[%s] Sample saved. CPU: %.2f%%, Mem: %.2f%%\n",
 				sample.Timestamp.Format("15:04:05"), sample.CPUPercent, sample.MemPercent)

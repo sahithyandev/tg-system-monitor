@@ -51,6 +51,10 @@ func (db *DB) Close() error {
 	return db.conn.Close()
 }
 
+func (db *DB) Ping() error {
+	return db.conn.Ping()
+}
+
 func (db *DB) migrate() error {
 	queries := []string{
 		`CREATE TABLE IF NOT EXISTS users (

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"tg-system-monitor/config"
+	"tg-system-monitor/db"
 )
 
 func TestBotCreation(t *testing.T) {
@@ -13,7 +14,14 @@ func TestBotCreation(t *testing.T) {
 		BotToken: "invalid_token_for_testing",
 	}
 
-	bot, err := New(cfg)
+	// Create a temporary database for testing
+	database, err := db.Init(":memory:")
+	if err != nil {
+		t.Fatalf("Failed to create test database: %v", err)
+	}
+	defer database.Close()
+
+	bot, err := New(cfg, database)
 	if err != nil {
 		// Expected to fail with invalid token, but should not panic
 		t.Logf("Expected error with invalid token: %v", err)
@@ -36,7 +44,14 @@ func TestBotStructure(t *testing.T) {
 		BotToken: "test_token",
 	}
 
-	bot, err := New(cfg)
+	// Create a temporary database for testing
+	database, err := db.Init(":memory:")
+	if err != nil {
+		t.Fatalf("Failed to create test database: %v", err)
+	}
+	defer database.Close()
+
+	bot, err := New(cfg, database)
 	if err != nil {
 		// Invalid token is expected
 		t.Logf("Bot creation failed as expected: %v", err)

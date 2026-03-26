@@ -6,23 +6,28 @@ import (
 	"log"
 	"log/slog"
 	"os"
+	"sync/atomic"
 	"time"
+
+	"tg-system-monitor/config"
+	"tg-system-monitor/db"
 
 	"github.com/PaulSonOfLars/gotgbot/v2"
 	"github.com/PaulSonOfLars/gotgbot/v2/ext"
 	"github.com/PaulSonOfLars/gotgbot/v2/ext/handlers"
 	"github.com/PaulSonOfLars/gotgbot/v2/ext/handlers/filters/message"
-	"tg-system-monitor/config"
 )
 
 type Bot struct {
-	bot    *gotgbot.Bot
-	updater *ext.Updater
-	cancel context.CancelFunc
-	done   chan struct{}
+	bot            *gotgbot.Bot
+	updater        *ext.Updater
+	cancel         context.CancelFunc
+	done           chan struct{}
+	db             *db.DB
+	lastMetricTime atomic.Value // stores time.Time
 }
 
-func New(cfg *config.Config) (*Bot, error) {
+func New(cfg *config.Config, database *db.DB) (*Bot, error) {
 	bot, err := gotgbot.NewBot(cfg.BotToken, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create bot: %w", err)
@@ -41,14 +46,22 @@ func New(cfg *config.Config) (*Bot, error) {
 	})
 	updater := ext.NewUpdater(dispatcher, &ext.UpdaterOpts{Logger: logger})
 
+	// Create bot instance
+	b := &Bot{
+		bot:     bot,
+		updater: updater,
+		db:      database,
+		done:    make(chan struct{}),
+	}
+	b.lastMetricTime.Store(time.Time{}) // Initialize with zero time
+
+	// Register ping command handler
+	dispatcher.AddHandler(handlers.NewCommand("ping", pingHandler(database, b.GetLastMetricTime)))
+
 	// Register echo handler for all text messages
 	dispatcher.AddHandler(handlers.NewMessage(message.Text, echoHandler))
 
-	return &Bot{
-		bot:    bot,
-		updater: updater,
-		done:   make(chan struct{}),
-	}, nil
+	return b, nil
 }
 
 func (b *Bot) Start(ctx context.Context) error {
@@ -97,4 +110,12 @@ func (b *Bot) Stop() {
 
 func (b *Bot) GetBot() *gotgbot.Bot {
 	return b.bot
+}
+
+func (b *Bot) UpdateLastMetricTime(t time.Time) {
+	b.lastMetricTime.Store(t)
+}
+
+func (b *Bot) GetLastMetricTime() time.Time {
+	return b.lastMetricTime.Load().(time.Time)
 }

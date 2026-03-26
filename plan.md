@@ -72,19 +72,6 @@ Long polling is simpler and usually fine for one bot per server.
   * either standard Linux `/proc` parsing
   * or a lightweight library like `gopsutil`
 
-### My recommendation
-
-Use:
-
-* **manual `/proc` reading for core metrics**
-* minimal Telegram library
-
-Reason:
-
-* lowest dependency surface
-* best control over resource usage
-* avoids dragging in heavy abstraction layers
-
 # 4. High-level architecture
 
 ## Internal modules
@@ -112,7 +99,6 @@ Converts metric samples into alerts:
 
 ### 7) `telegram`
 
-* poll updates
 * route commands
 * send direct replies
 * broadcast alerts to all subscribed users
@@ -251,16 +237,6 @@ Return:
 * alerts enabled yes/no
 * Telegram user ID
 * username
-
-### `/ping`
-
-Return:
-
-* bot alive
-* last metric collection timestamp
-* DB OK yes/no
-
----
 
 # 10. Authentication design
 
