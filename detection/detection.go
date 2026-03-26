@@ -1,0 +1,353 @@
+package detection
+
+import (
+	"database/sql"
+	"fmt"
+	"log"
+	"tg-system-monitor/db"
+	"tg-system-monitor/metrics"
+	"time"
+
+	_ "modernc.org/sqlite"
+)
+
+type Severity string
+
+const (
+	Warning  Severity = "warning"
+	Critical Severity = "critical"
+)
+
+type AlertType string
+
+const (
+	CPU         AlertType = "cpu"
+	Memory      AlertType = "memory"
+	Disk        AlertType = "disk"
+	Swap        AlertType = "swap"
+	Load1       AlertType = "load1"
+	Load5       AlertType = "load5"
+	Load15      AlertType = "load15"
+	CPUHigh     AlertType = "cpu_high"
+	MemoryHigh  AlertType = "memory_high"
+	DiskHigh    AlertType = "disk_high"
+	SwapHigh    AlertType = "swap_high"
+	LoadSpike   AlertType = "load_spike"
+	ResourceLow AlertType = "resource_low"
+)
+
+type Alert struct {
+	Type      AlertType
+	Severity  Severity
+	Value     float64
+	Threshold float64
+	Message   string
+}
+
+type AlertTransition struct {
+	Alert      Alert
+	Transition string // "triggered", "recovered"
+	Timestamp  time.Time
+}
+
+type Threshold struct {
+	Warning  float64
+	Critical float64
+}
+
+type DetectionConfig struct {
+	CPU          Threshold
+	Memory       Threshold
+	Disk         Threshold
+	Swap         Threshold
+	Load1        Threshold
+	Load5        Threshold
+	Load15       Threshold
+	WindowSecs   int
+	CooldownSecs int
+	Hysteresis   float64
+}
+
+type DetectionEngine struct {
+	db     *db.DB
+	config DetectionConfig
+}
+
+func NewDetectionEngine(database *db.DB, config DetectionConfig) *DetectionEngine {
+	return &DetectionEngine{
+		db:     database,
+		config: config,
+	}
+}
+
+func (d *DetectionEngine) EvaluateDetections() ([]AlertTransition, error) {
+	samples, err := d.getRecentSamples(d.config.WindowSecs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get recent samples: %w", err)
+	}
+
+	if len(samples) < 2 {
+		return nil, nil
+	}
+
+	var transitions []AlertTransition
+
+	// Basic threshold alerts
+	transitions = append(transitions, d.evaluateThresholdAlert(CPU, samples, d.config.CPU, func(s *metrics.MetricSample) float64 { return s.CPUPercent })...)
+	transitions = append(transitions, d.evaluateThresholdAlert(Memory, samples, d.config.Memory, func(s *metrics.MetricSample) float64 { return s.MemPercent })...)
+	transitions = append(transitions, d.evaluateThresholdAlert(Disk, samples, d.config.Disk, func(s *metrics.MetricSample) float64 { return s.DiskPercent })...)
+	transitions = append(transitions, d.evaluateThresholdAlert(Swap, samples, d.config.Swap, func(s *metrics.MetricSample) float64 { return s.SwapPercent })...)
+	transitions = append(transitions, d.evaluateThresholdAlert(Load1, samples, d.config.Load1, func(s *metrics.MetricSample) float64 { return s.Load1 })...)
+	transitions = append(transitions, d.evaluateThresholdAlert(Load5, samples, d.config.Load5, func(s *metrics.MetricSample) float64 { return s.Load5 })...)
+	transitions = append(transitions, d.evaluateThresholdAlert(Load15, samples, d.config.Load15, func(s *metrics.MetricSample) float64 { return s.Load15 })...)
+
+	// Derived alerts
+	transitions = append(transitions, d.evaluateDerivedAlerts(samples)...)
+
+	return transitions, nil
+}
+
+func (d *DetectionEngine) getRecentSamples(windowSecs int) ([]*metrics.MetricSample, error) {
+	cutoff := time.Now().Add(-time.Duration(windowSecs) * time.Second).Unix()
+
+	rows, err := d.db.GetConn().Query(`
+		SELECT ts_unix, cpu_percent, mem_percent, swap_percent, disk_percent, load1, load5, load15, uptime
+		FROM metric_samples 
+		WHERE ts_unix >= ?
+		ORDER BY ts_unix ASC
+	`, cutoff)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var samples []*metrics.MetricSample
+	for rows.Next() {
+		var s metrics.MetricSample
+		var tsUnix int64
+		err := rows.Scan(&tsUnix, &s.CPUPercent, &s.MemPercent, &s.SwapPercent, &s.DiskPercent, &s.Load1, &s.Load5, &s.Load15, &s.Uptime)
+		if err != nil {
+			return nil, err
+		}
+		s.Timestamp = time.Unix(tsUnix, 0)
+		samples = append(samples, &s)
+	}
+
+	return samples, nil
+}
+
+func (d *DetectionEngine) evaluateThresholdAlert(alertType AlertType, samples []*metrics.MetricSample, threshold Threshold, getValue func(*metrics.MetricSample) float64) []AlertTransition {
+	var transitions []AlertTransition
+
+	latest := samples[len(samples)-1]
+	value := getValue(latest)
+
+	warningKey := fmt.Sprintf("%s_warning", string(alertType))
+	criticalKey := fmt.Sprintf("%s_critical", string(alertType))
+
+	now := time.Now().Unix()
+
+	// Check critical threshold
+	if value >= threshold.Critical {
+		if transition := d.checkAlertTransition(criticalKey, alertType, Critical, value, threshold.Critical, now); transition != nil {
+			transitions = append(transitions, *transition)
+		}
+	} else if value >= threshold.Warning {
+		if transition := d.checkAlertTransition(warningKey, alertType, Warning, value, threshold.Warning, now); transition != nil {
+			transitions = append(transitions, *transition)
+		}
+	} else {
+		// Check for recovery
+		if transition := d.checkRecovery(warningKey, alertType, Warning, value, threshold.Warning, now); transition != nil {
+			transitions = append(transitions, *transition)
+		}
+		if transition := d.checkRecovery(criticalKey, alertType, Critical, value, threshold.Critical, now); transition != nil {
+			transitions = append(transitions, *transition)
+		}
+	}
+
+	return transitions
+}
+
+func (d *DetectionEngine) checkAlertTransition(key string, alertType AlertType, severity Severity, value, threshold float64, now int64) *AlertTransition {
+	state, err := d.db.GetAlertState(key)
+	if err != nil {
+		log.Printf("Error getting alert state for %s: %v", key, err)
+		return nil
+	}
+
+	if state == nil {
+		// New alert
+		state = &db.AlertState{
+			Key:               key,
+			IsActive:          true,
+			ActiveSinceUnix:   now,
+			LastTriggeredUnix: now,
+		}
+		if err := d.db.UpdateAlertState(state); err != nil {
+			log.Printf("Error updating alert state for %s: %v", key, err)
+			return nil
+		}
+
+		return &AlertTransition{
+			Alert: Alert{
+				Type:      alertType,
+				Severity:  severity,
+				Value:     value,
+				Threshold: threshold,
+				Message:   fmt.Sprintf("%s %s: %.2f >= %.2f", alertType, severity, value, threshold),
+			},
+			Transition: "triggered",
+			Timestamp:  time.Unix(now, 0),
+		}
+	}
+
+	if !state.IsActive {
+		// Reactivation after cooldown
+		if now-state.LastRecoveredUnix >= int64(d.config.CooldownSecs) {
+			state.IsActive = true
+			state.ActiveSinceUnix = now
+			state.LastTriggeredUnix = now
+			if err := d.db.UpdateAlertState(state); err != nil {
+				log.Printf("Error updating alert state for %s: %v", key, err)
+				return nil
+			}
+
+			return &AlertTransition{
+				Alert: Alert{
+					Type:      alertType,
+					Severity:  severity,
+					Value:     value,
+					Threshold: threshold,
+					Message:   fmt.Sprintf("%s %s: %.2f >= %.2f", alertType, severity, value, threshold),
+				},
+				Transition: "triggered",
+				Timestamp:  time.Unix(now, 0),
+			}
+		}
+	} else if now-state.LastTriggeredUnix >= int64(d.config.CooldownSecs) {
+		// Duplicate suppression - update trigger time but don't send alert
+		state.LastTriggeredUnix = now
+		d.db.UpdateAlertState(state)
+	}
+
+	return nil
+}
+
+func (d *DetectionEngine) checkRecovery(key string, alertType AlertType, severity Severity, value, threshold float64, now int64) *AlertTransition {
+	state, err := d.db.GetAlertState(key)
+	if err != nil {
+		log.Printf("Error getting alert state for %s: %v", key, err)
+		return nil
+	}
+
+	if state != nil && state.IsActive {
+		// Apply hysteresis
+		recoveryThreshold := threshold - d.config.Hysteresis
+		if value <= recoveryThreshold {
+			state.IsActive = false
+			state.LastRecoveredUnix = now
+			if err := d.db.UpdateAlertState(state); err != nil {
+				log.Printf("Error updating alert state for %s: %v", key, err)
+				return nil
+			}
+
+			return &AlertTransition{
+				Alert: Alert{
+					Type:      alertType,
+					Severity:  severity,
+					Value:     value,
+					Threshold: threshold,
+					Message:   fmt.Sprintf("%s %s recovered: %.2f <= %.2f", alertType, severity, value, recoveryThreshold),
+				},
+				Transition: "recovered",
+				Timestamp:  time.Unix(now, 0),
+			}
+		}
+	}
+
+	return nil
+}
+
+func (d *DetectionEngine) evaluateDerivedAlerts(samples []*metrics.MetricSample) []AlertTransition {
+	var transitions []AlertTransition
+
+	if len(samples) < 2 {
+		return transitions
+	}
+
+	latest := samples[len(samples)-1]
+	previous := samples[len(samples)-2]
+	now := time.Now().Unix()
+
+	// CPU sustained high alert
+	if d.isSustainedHigh(samples, func(s *metrics.MetricSample) float64 { return s.CPUPercent }, d.config.CPU.Critical) {
+		if transition := d.checkAlertTransition("cpu_sustained_high", CPUHigh, Critical, latest.CPUPercent, d.config.CPU.Critical, now); transition != nil {
+			transition.Alert.Message = fmt.Sprintf("CPU sustained high: %.2f for %d seconds", latest.CPUPercent, d.config.WindowSecs)
+			transitions = append(transitions, *transition)
+		}
+	}
+
+	// Memory sustained high alert
+	if d.isSustainedHigh(samples, func(s *metrics.MetricSample) float64 { return s.MemPercent }, d.config.Memory.Critical) {
+		if transition := d.checkAlertTransition("memory_sustained_high", MemoryHigh, Critical, latest.MemPercent, d.config.Memory.Critical, now); transition != nil {
+			transition.Alert.Message = fmt.Sprintf("Memory sustained high: %.2f for %d seconds", latest.MemPercent, d.config.WindowSecs)
+			transitions = append(transitions, *transition)
+		}
+	}
+
+	// Load spike detection
+	loadIncrease := latest.Load1 - previous.Load1
+	if loadIncrease >= 2.0 && latest.Load1 >= d.config.Load1.Warning {
+		if transition := d.checkAlertTransition("load_spike", LoadSpike, Warning, latest.Load1, previous.Load1, now); transition != nil {
+			transition.Alert.Message = fmt.Sprintf("Load spike: %.2f -> %.2f (+%.2f)", previous.Load1, latest.Load1, loadIncrease)
+			transitions = append(transitions, *transition)
+		}
+	}
+
+	// Resource pressure (multiple metrics high)
+	pressureCount := 0
+	if latest.CPUPercent >= d.config.CPU.Warning {
+		pressureCount++
+	}
+	if latest.MemPercent >= d.config.Memory.Warning {
+		pressureCount++
+	}
+	if latest.DiskPercent >= d.config.Disk.Warning {
+		pressureCount++
+	}
+
+	if pressureCount >= 2 {
+		if transition := d.checkAlertTransition("resource_pressure", ResourceLow, Warning, float64(pressureCount), 2.0, now); transition != nil {
+			transition.Alert.Message = fmt.Sprintf("Resource pressure: %d metrics above threshold (CPU: %.1f%%, Memory: %.1f%%, Disk: %.1f%%)",
+				pressureCount, latest.CPUPercent, latest.MemPercent, latest.DiskPercent)
+			transitions = append(transitions, *transition)
+		}
+	}
+
+	return transitions
+}
+
+func (d *DetectionEngine) isSustainedHigh(samples []*metrics.MetricSample, getValue func(*metrics.MetricSample) float64, threshold float64) bool {
+	if len(samples) < 3 {
+		return false
+	}
+
+	count := 0
+	for _, sample := range samples {
+		if getValue(sample) >= threshold {
+			count++
+		}
+	}
+
+	return float64(count)/float64(len(samples)) >= 0.8 // 80% of samples above threshold
+}
+
+// Helper method to get the underlying database connection
+func (d *DetectionEngine) GetDB() *db.DB {
+	return d.db
+}
+
+func (d *DetectionEngine) GetConn() *sql.DB {
+	return d.db.GetConn()
+}
