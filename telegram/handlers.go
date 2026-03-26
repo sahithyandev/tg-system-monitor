@@ -104,9 +104,6 @@ func whoamiHandler(database *db.DB) func(b *gotgbot.Bot, ctx *ext.Context) error
 		var allowedStatus, alertsStatus string
 		if user != nil {
 			allowedStatus = "✅ Authenticated"
-			if user.AuthCount > 0 {
-				allowedStatus += fmt.Sprintf(" (%d authentications)", user.AuthCount)
-			}
 		} else {
 			allowedStatus = "❌ Not authenticated"
 		}

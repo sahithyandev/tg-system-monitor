@@ -18,7 +18,6 @@ type User struct {
 	LastName      string
 	FirstAuthAt   time.Time
 	LastAuthAt    time.Time
-	AuthCount     int
 	AlertsEnabled bool
 	CreatedAt     time.Time
 }
@@ -66,7 +65,6 @@ func (db *DB) migrate() error {
 			last_name TEXT,
 			first_auth_at TEXT,
 			last_auth_at TEXT,
-			auth_count INTEGER NOT NULL DEFAULT 0,
 			alerts_enabled INTEGER NOT NULL DEFAULT 1,
 			created_at TEXT DEFAULT CURRENT_TIMESTAMP
 		);`,
@@ -146,7 +144,6 @@ func (db *DB) migrateFromAllowlist() error {
 	migrationQueries := []string{
 		`ALTER TABLE users ADD COLUMN first_auth_at TEXT`,
 		`ALTER TABLE users ADD COLUMN last_auth_at TEXT`,
-		`ALTER TABLE users ADD COLUMN auth_count INTEGER NOT NULL DEFAULT 0`,
 		`ALTER TABLE users ADD COLUMN created_at TEXT DEFAULT CURRENT_TIMESTAMP`,
 	}
 
@@ -161,7 +158,6 @@ func (db *DB) migrateFromAllowlist() error {
 		UPDATE users SET 
 			first_auth_at = joined_at,
 			last_auth_at = last_seen_at,
-			auth_count = 1,
 			created_at = joined_at
 		WHERE is_allowed = 1
 	`)
@@ -172,7 +168,6 @@ func (db *DB) migrateFromAllowlist() error {
 	// Migrate existing non-allowed users to new system (keep their data but no auth history)
 	_, err = db.conn.Exec(`
 		UPDATE users SET 
-			auth_count = 0,
 			created_at = COALESCE(joined_at, datetime('now'))
 		WHERE is_allowed = 0 OR is_allowed IS NULL
 	`)
@@ -192,9 +187,9 @@ func (db *DB) GetUser(id int64) (*User, error) {
 	var alertsEnabled int
 
 	err := db.conn.QueryRow(`
-		SELECT telegram_user_id, username, first_name, last_name, first_auth_at, last_auth_at, auth_count, alerts_enabled, created_at
+		SELECT telegram_user_id, username, first_name, last_name, first_auth_at, last_auth_at, alerts_enabled, created_at
 		FROM users WHERE telegram_user_id = ?`, id).Scan(
-		&u.ID, &u.Username, &u.FirstName, &u.LastName, &firstAuthAt, &lastAuthAt, &u.AuthCount, &alertsEnabled, &createdAt)
+		&u.ID, &u.Username, &u.FirstName, &u.LastName, &firstAuthAt, &lastAuthAt, &alertsEnabled, &createdAt)
 
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -218,25 +213,24 @@ func (db *DB) UpdateUser(u *User) error {
 	}
 
 	_, err := db.conn.Exec(`
-		INSERT INTO users (telegram_user_id, username, first_name, last_name, first_auth_at, last_auth_at, auth_count, alerts_enabled, created_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO users (telegram_user_id, username, first_name, last_name, first_auth_at, last_auth_at, alerts_enabled, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(telegram_user_id) DO UPDATE SET
 			username = excluded.username,
 			first_name = excluded.first_name,
 			last_name = excluded.last_name,
 			first_auth_at = excluded.first_auth_at,
 			last_auth_at = excluded.last_auth_at,
-			auth_count = excluded.auth_count,
 			alerts_enabled = excluded.alerts_enabled,
 			created_at = excluded.created_at`,
 		u.ID, u.Username, u.FirstName, u.LastName,
-		u.FirstAuthAt.Format(time.RFC3339), u.LastAuthAt.Format(time.RFC3339), u.AuthCount, alertsEnabled,
+		u.FirstAuthAt.Format(time.RFC3339), u.LastAuthAt.Format(time.RFC3339), alertsEnabled,
 		u.CreatedAt.Format(time.RFC3339))
 	return err
 }
 
 func (db *DB) GetAllowedUsers() ([]User, error) {
-	rows, err := db.conn.Query(`SELECT telegram_user_id, alerts_enabled, auth_count FROM users ORDER BY last_auth_at DESC`)
+	rows, err := db.conn.Query(`SELECT telegram_user_id, alerts_enabled, first_auth_at FROM users ORDER BY last_auth_at DESC`)
 	if err != nil {
 		return nil, err
 	}
@@ -246,7 +240,7 @@ func (db *DB) GetAllowedUsers() ([]User, error) {
 	for rows.Next() {
 		var u User
 		var alertsEnabled int
-		if err := rows.Scan(&u.ID, &alertsEnabled, &u.AuthCount); err != nil {
+		if err := rows.Scan(&u.ID, &alertsEnabled, &u.FirstAuthAt); err != nil {
 			return nil, err
 		}
 		u.AlertsEnabled = alertsEnabled == 1
@@ -330,15 +324,6 @@ func (db *DB) IncrementFailedAuth(userID int64) error {
 
 func (db *DB) ResetFailedAuth(userID int64) error {
 	_, err := db.conn.Exec("DELETE FROM failed_auth WHERE telegram_user_id = ?", userID)
-	return err
-}
-
-func (db *DB) UpdateUserAuth(userID int64) error {
-	_, err := db.conn.Exec(`
-		UPDATE users SET 
-			last_auth_at = datetime('now'),
-			auth_count = auth_count + 1
-		WHERE telegram_user_id = ?`, userID)
 	return err
 }
 
