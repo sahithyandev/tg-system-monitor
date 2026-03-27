@@ -24,6 +24,9 @@ import (
 var DefaultConfigYAML string
 
 func main() {
+	// Set the default config first - needed for all commands
+	config.DefaultConfigYAML = DefaultConfigYAML
+
 	// Check for subcommands
 	if len(os.Args) > 1 {
 		switch os.Args[1] {
@@ -35,8 +38,6 @@ func main() {
 			return
 		}
 	}
-
-	config.DefaultConfigYAML = DefaultConfigYAML
 
 	// Default behavior: run the monitor
 	runMonitor()

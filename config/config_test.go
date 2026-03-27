@@ -6,6 +6,59 @@ import (
 	"testing"
 )
 
+func init() {
+	// Load default config from the default-config.yml file
+	configPath := filepath.Join("..", "default-config.yml")
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		// Fallback to hardcoded defaults if file can't be read
+		DefaultConfigYAML = `# Copy this file to ~/.config/tg-system-monitor/config.yml
+# Replace YOUR_BOT_TOKEN with your actual Telegram bot token
+
+# Required: Get from @BotFather on Telegram
+bot_token: "YOUR_BOT_TOKEN_HERE"
+
+# Optional: Hash of password for users to join the bot
+# DO NOT EDIT MANUALLY. USE ` + "`set-password`" + ` TO DO SO. 
+join_password_hash: ""
+
+# Optional: Override hostname detection
+hostname_override: ""
+
+# Optional: How often to poll for system metrics (seconds)
+poll_interval_seconds: 15
+
+# CPU monitoring thresholds
+cpu_threshold_percent: 85.0
+cpu_recovery_percent: 70.0
+cpu_sustain_seconds: 300
+
+# Memory monitoring thresholds  
+mem_threshold_percent: 90.0
+mem_recovery_percent: 80.0
+mem_sustain_seconds: 180
+
+# Swap monitoring thresholds
+swap_threshold_percent: 25.0
+swap_recovery_percent: 10.0
+swap_sustain_seconds: 180
+
+# Disk monitoring thresholds
+disk_threshold_percent: 95.0
+disk_recovery_percent: 90.0
+
+# Alert settings
+alert_cooldown_seconds: 1800
+top_process_count: 5
+
+# Database path
+db_path: "~/.config/tg-system-monitor/tgsm.db"
+`
+		return
+	}
+	DefaultConfigYAML = string(data)
+}
+
 func TestConfig_Validate(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -181,6 +234,33 @@ func Test_mergeConfigs(t *testing.T) {
 				AlertCooldownSeconds: 3600,
 				TopProcessCount:      10,
 				DBPath:               "/user/path",
+			},
+		},
+		{
+			name: "Undefined poll_interval_seconds in user config",
+			userConfig: &Config{
+				BotToken: "user_token",
+				// PollInterval is undefined (zero value)
+			},
+			want: &Config{
+				BotToken:             "user_token",    // overridden
+				JoinPasswordHash:     "default_hash",  // preserved
+				HostnameOverride:     "default_host",  // preserved
+				PollInterval:         15,              // should use default value
+				CPUThresholdPercent:  85.0,            // preserved
+				CPURecoveryPercent:   70.0,            // preserved
+				CPUSustainSeconds:    300,             // preserved
+				MemThresholdPercent:  90.0,            // preserved
+				MemRecoveryPercent:   80.0,            // preserved
+				MemSustainSeconds:    180,             // preserved
+				SwapThresholdPercent: 25.0,            // preserved
+				SwapRecoveryPercent:  10.0,            // preserved
+				SwapSustainSeconds:   180,             // preserved
+				DiskThresholdPercent: 95.0,            // preserved
+				DiskRecoveryPercent:  90.0,            // preserved
+				AlertCooldownSeconds: 1800,            // preserved
+				TopProcessCount:      5,               // preserved
+				DBPath:               "/default/path", // preserved
 			},
 		},
 	}
