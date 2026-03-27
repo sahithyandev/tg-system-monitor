@@ -450,7 +450,8 @@ func (db *DB) GetUnsentAlerts(limit int) ([]Alert, error) {
 	var alerts []Alert
 	for rows.Next() {
 		var a Alert
-		var tsUnix, sentAtUnix int64
+		var tsUnix int64
+		var sentAtUnix *int64
 		var createdAt string
 		err := rows.Scan(&a.ID, &a.AlertType, &a.Severity, &a.Value, &a.Threshold, &a.Message, &a.Transition, &tsUnix, &sentAtUnix, &createdAt)
 		if err != nil {
@@ -458,8 +459,8 @@ func (db *DB) GetUnsentAlerts(limit int) ([]Alert, error) {
 		}
 
 		a.Timestamp = time.Unix(tsUnix, 0)
-		if sentAtUnix > 0 {
-			sentAt := time.Unix(sentAtUnix, 0)
+		if sentAtUnix != nil && *sentAtUnix > 0 {
+			sentAt := time.Unix(*sentAtUnix, 0)
 			a.SentAt = &sentAt
 		}
 		a.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
