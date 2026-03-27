@@ -33,6 +33,17 @@ swap_sustain_seconds: 180
 disk_threshold_percent: 95.0
 disk_recovery_percent: 90.0
 
+# Load monitoring thresholds
+load1_warning: 2.0
+load1_critical: 4.0
+load5_warning: 1.5
+load5_critical: 3.0
+load15_warning: 1.0
+load15_critical: 2.0
+
+# Detection hysteresis to prevent flapping (percent)
+hysteresis: 5.0
+
 # Alert settings
 alert_cooldown_seconds: 1800
 top_process_count: 5

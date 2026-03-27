@@ -32,6 +32,13 @@ func getDefaultConfig(configDir string) *Config {
 			SwapSustainSeconds:   180,
 			DiskThresholdPercent: 95,
 			DiskRecoveryPercent:  90,
+			Load1Warning:         2.0,
+			Load1Critical:        4.0,
+			Load5Warning:         1.5,
+			Load5Critical:        3.0,
+			Load15Warning:        1.0,
+			Load15Critical:       2.0,
+			Hysteresis:           5.0,
 			AlertCooldownSeconds: 1800,
 			TopProcessCount:      5,
 			DBPath:               filepath.Join(configDir, "tgsm1.db"),
@@ -61,6 +68,14 @@ type Config struct {
 	DiskThresholdPercent float64 `yaml:"disk_threshold_percent"`
 	DiskRecoveryPercent  float64 `yaml:"disk_recovery_percent"`
 
+	Load1Warning   float64 `yaml:"load1_warning"`
+	Load1Critical  float64 `yaml:"load1_critical"`
+	Load5Warning   float64 `yaml:"load5_warning"`
+	Load5Critical  float64 `yaml:"load5_critical"`
+	Load15Warning  float64 `yaml:"load15_warning"`
+	Load15Critical float64 `yaml:"load15_critical"`
+	Hysteresis     float64 `yaml:"hysteresis"`
+
 	AlertCooldownSeconds int    `yaml:"alert_cooldown_seconds"`
 	TopProcessCount      int    `yaml:"top_process_count"`
 	DBPath               string `yaml:"db_path"`
@@ -78,6 +93,13 @@ func (c *Config) PrintThresholds() {
 		c.SwapRecoveryPercent, c.SwapThresholdPercent, c.SwapSustainSeconds)
 	fmt.Printf("Disk    | Warning: %.1f%% | Critical: %.1f%% | Sustain: -\n",
 		c.DiskRecoveryPercent, c.DiskThresholdPercent)
+	fmt.Printf("Load1   | Warning: %.1f | Critical: %.1f\n",
+		c.Load1Warning, c.Load1Critical)
+	fmt.Printf("Load5   | Warning: %.1f | Critical: %.1f\n",
+		c.Load5Warning, c.Load5Critical)
+	fmt.Printf("Load15  | Warning: %.1f | Critical: %.1f\n",
+		c.Load15Warning, c.Load15Critical)
+	fmt.Printf("Hysteresis: %.1f%%\n", c.Hysteresis)
 	fmt.Println()
 }
 
@@ -165,6 +187,27 @@ func mergeConfigs(defaultConfig, userConfig *Config) *Config {
 	}
 	if userConfig.DiskRecoveryPercent != 0 {
 		merged.DiskRecoveryPercent = userConfig.DiskRecoveryPercent
+	}
+	if userConfig.Load1Warning != 0 {
+		merged.Load1Warning = userConfig.Load1Warning
+	}
+	if userConfig.Load1Critical != 0 {
+		merged.Load1Critical = userConfig.Load1Critical
+	}
+	if userConfig.Load5Warning != 0 {
+		merged.Load5Warning = userConfig.Load5Warning
+	}
+	if userConfig.Load5Critical != 0 {
+		merged.Load5Critical = userConfig.Load5Critical
+	}
+	if userConfig.Load15Warning != 0 {
+		merged.Load15Warning = userConfig.Load15Warning
+	}
+	if userConfig.Load15Critical != 0 {
+		merged.Load15Critical = userConfig.Load15Critical
+	}
+	if userConfig.Hysteresis != 0 {
+		merged.Hysteresis = userConfig.Hysteresis
 	}
 	if userConfig.AlertCooldownSeconds != 0 {
 		merged.AlertCooldownSeconds = userConfig.AlertCooldownSeconds

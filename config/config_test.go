@@ -49,6 +49,17 @@ swap_sustain_seconds: 180
 disk_threshold_percent: 95.0
 disk_recovery_percent: 90.0
 
+# Load monitoring thresholds
+load1_warning: 2.0
+load1_critical: 4.0
+load5_warning: 1.5
+load5_critical: 3.0
+load15_warning: 1.0
+load15_critical: 2.0
+
+# Detection hysteresis to prevent flapping (percent)
+hysteresis: 5.0
+
 # Alert settings
 alert_cooldown_seconds: 1800
 top_process_count: 5
@@ -148,6 +159,13 @@ func Test_mergeConfigs(t *testing.T) {
 		SwapSustainSeconds:   180,
 		DiskThresholdPercent: 95.0,
 		DiskRecoveryPercent:  90.0,
+		Load1Warning:         2.0,
+		Load1Critical:        4.0,
+		Load5Warning:         1.5,
+		Load5Critical:        3.0,
+		Load15Warning:        1.0,
+		Load15Critical:       2.0,
+		Hysteresis:           5.0,
 		AlertCooldownSeconds: 1800,
 		TopProcessCount:      5,
 		DBPath:               "/default/path",
@@ -190,6 +208,13 @@ func Test_mergeConfigs(t *testing.T) {
 				SwapSustainSeconds:   180,             // preserved
 				DiskThresholdPercent: 95.0,            // preserved
 				DiskRecoveryPercent:  90.0,            // preserved
+				Load1Warning:         2.0,             // preserved
+				Load1Critical:        4.0,             // preserved
+				Load5Warning:         1.5,             // preserved
+				Load5Critical:        3.0,             // preserved
+				Load15Warning:        1.0,             // preserved
+				Load15Critical:       2.0,             // preserved
+				Hysteresis:           5.0,             // preserved
 				AlertCooldownSeconds: 1800,            // preserved
 				TopProcessCount:      5,               // preserved
 				DBPath:               "/default/path", // preserved
@@ -213,6 +238,13 @@ func Test_mergeConfigs(t *testing.T) {
 				SwapSustainSeconds:   300,
 				DiskThresholdPercent: 98.0,
 				DiskRecoveryPercent:  95.0,
+				Load1Warning:         3.0,
+				Load1Critical:        5.0,
+				Load5Warning:         2.0,
+				Load5Critical:        4.0,
+				Load15Warning:        1.5,
+				Load15Critical:       2.5,
+				Hysteresis:           10.0,
 				AlertCooldownSeconds: 3600,
 				TopProcessCount:      10,
 				DBPath:               "/user/path",
@@ -233,6 +265,13 @@ func Test_mergeConfigs(t *testing.T) {
 				SwapSustainSeconds:   300,
 				DiskThresholdPercent: 98.0,
 				DiskRecoveryPercent:  95.0,
+				Load1Warning:         3.0,
+				Load1Critical:        5.0,
+				Load5Warning:         2.0,
+				Load5Critical:        4.0,
+				Load15Warning:        1.5,
+				Load15Critical:       2.5,
+				Hysteresis:           10.0,
 				AlertCooldownSeconds: 3600,
 				TopProcessCount:      10,
 				DBPath:               "/user/path",
@@ -260,6 +299,13 @@ func Test_mergeConfigs(t *testing.T) {
 				SwapSustainSeconds:   180,             // preserved
 				DiskThresholdPercent: 95.0,            // preserved
 				DiskRecoveryPercent:  90.0,            // preserved
+				Load1Warning:         2.0,             // preserved
+				Load1Critical:        4.0,             // preserved
+				Load5Warning:         1.5,             // preserved
+				Load5Critical:        3.0,             // preserved
+				Load15Warning:        1.0,             // preserved
+				Load15Critical:       2.0,             // preserved
+				Hysteresis:           5.0,             // preserved
 				AlertCooldownSeconds: 1800,            // preserved
 				TopProcessCount:      5,               // preserved
 				DBPath:               "/default/path", // preserved
@@ -314,6 +360,27 @@ func Test_mergeConfigs(t *testing.T) {
 			}
 			if got.DiskRecoveryPercent != tt.want.DiskRecoveryPercent {
 				t.Errorf("DiskRecoveryPercent = %v, want %v", got.DiskRecoveryPercent, tt.want.DiskRecoveryPercent)
+			}
+			if got.Load1Warning != tt.want.Load1Warning {
+				t.Errorf("Load1Warning = %v, want %v", got.Load1Warning, tt.want.Load1Warning)
+			}
+			if got.Load1Critical != tt.want.Load1Critical {
+				t.Errorf("Load1Critical = %v, want %v", got.Load1Critical, tt.want.Load1Critical)
+			}
+			if got.Load5Warning != tt.want.Load5Warning {
+				t.Errorf("Load5Warning = %v, want %v", got.Load5Warning, tt.want.Load5Warning)
+			}
+			if got.Load5Critical != tt.want.Load5Critical {
+				t.Errorf("Load5Critical = %v, want %v", got.Load5Critical, tt.want.Load5Critical)
+			}
+			if got.Load15Warning != tt.want.Load15Warning {
+				t.Errorf("Load15Warning = %v, want %v", got.Load15Warning, tt.want.Load15Warning)
+			}
+			if got.Load15Critical != tt.want.Load15Critical {
+				t.Errorf("Load15Critical = %v, want %v", got.Load15Critical, tt.want.Load15Critical)
+			}
+			if got.Hysteresis != tt.want.Hysteresis {
+				t.Errorf("Hysteresis = %v, want %v", got.Hysteresis, tt.want.Hysteresis)
 			}
 			if got.AlertCooldownSeconds != tt.want.AlertCooldownSeconds {
 				t.Errorf("AlertCooldownSeconds = %v, want %v", got.AlertCooldownSeconds, tt.want.AlertCooldownSeconds)

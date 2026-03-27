@@ -140,20 +140,20 @@ func runMonitor() {
 			Critical: cfg.SwapThresholdPercent,
 		},
 		Load1: detection.Threshold{
-			Warning:  2.0, // Fallback values for load thresholds
-			Critical: 4.0,
+			Warning:  cfg.Load1Warning,
+			Critical: cfg.Load1Critical,
 		},
 		Load5: detection.Threshold{
-			Warning:  1.5,
-			Critical: 3.0,
+			Warning:  cfg.Load5Warning,
+			Critical: cfg.Load5Critical,
 		},
 		Load15: detection.Threshold{
-			Warning:  1.0,
-			Critical: 2.0,
+			Warning:  cfg.Load15Warning,
+			Critical: cfg.Load15Critical,
 		},
 		WindowSecs:   cfg.CPUSustainSeconds, // Use CPU sustain seconds as window
 		CooldownSecs: cfg.AlertCooldownSeconds,
-		Hysteresis:   5.0, // 5% hysteresis fallback
+		Hysteresis:   cfg.Hysteresis,
 	}
 	detector := detection.NewDetectionEngine(database, detectionConfig)
 
