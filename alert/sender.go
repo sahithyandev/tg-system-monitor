@@ -2,11 +2,12 @@ package alert
 
 import (
 	"context"
-	"log"
+	"fmt"
 	"time"
 
 	"tg-system-monitor/db"
 	"tg-system-monitor/detection"
+	msg "tg-system-monitor/message"
 )
 
 type AlertSender interface {
@@ -35,12 +36,12 @@ func (s *Sender) Start(ctx context.Context) {
 	ticker := time.NewTicker(s.interval)
 	defer ticker.Stop()
 
-	log.Printf("Alert sender started with interval: %v", s.interval)
+	fmt.Println(msg.LogStarted(msg.ComponentAlert, fmt.Sprintf("alert sender (interval: %v)", s.interval)))
 
 	for {
 		select {
 		case <-ctx.Done():
-			log.Println("Alert sender stopping...")
+			fmt.Println(msg.LogCompleted(msg.ComponentAlert, "alert sender stopping"))
 			return
 		case <-ticker.C:
 			s.processAlerts()
@@ -52,7 +53,7 @@ func (s *Sender) processAlerts() {
 	// Get unsent alerts
 	transitions, err := s.db.GetUnsentAlerts(s.batchSize)
 	if err != nil {
-		log.Printf("Error getting unsent alerts: %v", err)
+		fmt.Println(msg.LogFailed(msg.ComponentAlert, "getting unsent alerts", err.Error()))
 		return
 	}
 
@@ -60,17 +61,17 @@ func (s *Sender) processAlerts() {
 		return // No alerts to process
 	}
 
-	log.Printf("Processing %d alert transitions", len(transitions))
+	fmt.Println(msg.LogCompleted(msg.ComponentAlert, fmt.Sprintf("processing %d alert transitions", len(transitions))))
 
 	for _, alert := range transitions {
 		if err := s.sendAlert(alert); err != nil {
-			log.Printf("Failed to send alert ID %d: %v", alert.ID, err)
+			fmt.Println(msg.LogFailed(msg.ComponentAlert, fmt.Sprintf("sending alert ID %d", alert.ID), err.Error()))
 			continue
 		}
 
 		// Mark as sent
 		if err := s.db.MarkAlertSent(alert.ID); err != nil {
-			log.Printf("Failed to mark alert ID %d as sent: %v", alert.ID, err)
+			fmt.Println(msg.LogFailed(msg.ComponentAlert, fmt.Sprintf("marking alert ID %d as sent", alert.ID), err.Error()))
 		}
 	}
 }
@@ -92,6 +93,6 @@ func (s *Sender) sendAlert(alert db.Alert) error {
 // SendAlertImmediate sends an alert immediately without storing in database
 // This can be used for critical system events that need immediate delivery
 func (s *Sender) SendAlertImmediate(alert detection.Alert, transition string) error {
-	log.Printf("Sending immediate alert: %s %s", alert.Severity, alert.Type)
+	fmt.Println(msg.LogStarted(msg.ComponentAlert, fmt.Sprintf("immediate alert: %s %s", alert.Severity, alert.Type)))
 	return s.alertSender.SendAlert(alert, transition)
 }

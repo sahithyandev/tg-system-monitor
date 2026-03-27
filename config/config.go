@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 
+	msg "tg-system-monitor/message"
+
 	"gopkg.in/yaml.v3"
 )
 
@@ -82,16 +84,16 @@ type Config struct {
 }
 
 func (c *Config) PrintThresholds() {
-	fmt.Println("\nSystem Monitor Thresholds:")
+	fmt.Printf("%s\n", msg.StatusTemplate("System Monitor Configuration", "Active", "Thresholds and settings loaded successfully"))
 	fmt.Println("==========================")
 
-	fmt.Printf("CPU     | Warning: %.1f%% | Critical: %.1f%% | Sustain: %ds\n",
+	fmt.Printf("CPU     | Warning: %.1f%% | Critical: %.1f%% | Sustain: %d seconds\n",
 		c.CPURecoveryPercent, c.CPUThresholdPercent, c.CPUSustainSeconds)
-	fmt.Printf("Memory  | Warning: %.1f%% | Critical: %.1f%% | Sustain: %ds\n",
+	fmt.Printf("Memory  | Warning: %.1f%% | Critical: %.1f%% | Sustain: %d seconds\n",
 		c.MemRecoveryPercent, c.MemThresholdPercent, c.MemSustainSeconds)
-	fmt.Printf("Swap    | Warning: %.1f%% | Critical: %.1f%% | Sustain: %ds\n",
+	fmt.Printf("Swap    | Warning: %.1f%% | Critical: %.1f%% | Sustain: %d seconds\n",
 		c.SwapRecoveryPercent, c.SwapThresholdPercent, c.SwapSustainSeconds)
-	fmt.Printf("Disk    | Warning: %.1f%% | Critical: %.1f%% | Sustain: -\n",
+	fmt.Printf("Disk    | Warning: %.1f%% | Critical: %.1f%% | Sustain: - seconds\n",
 		c.DiskRecoveryPercent, c.DiskThresholdPercent)
 	fmt.Printf("Load1   | Warning: %.1f | Critical: %.1f\n",
 		c.Load1Warning, c.Load1Critical)

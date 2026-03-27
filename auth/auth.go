@@ -5,9 +5,9 @@ import (
 	"crypto/subtle"
 	"encoding/base64"
 	"fmt"
-	"log"
 	"strings"
 	"tg-system-monitor/db"
+	msg "tg-system-monitor/message"
 	"time"
 
 	"golang.org/x/crypto/argon2"
@@ -77,14 +77,14 @@ func VerifyPassword(password, hash string) bool {
 	// Parse the hash format using manual parsing since sscanf has issues with base64
 	parts := strings.Split(hash, "$")
 	if len(parts) != 6 || parts[0] != "" || parts[1] != "argon2id" || parts[2] != "v=19" {
-		log.Printf("Invalid hash format")
+		fmt.Println(msg.LogFailed(msg.ComponentAuth, "hash format validation", "invalid format"))
 		return false
 	}
 
 	// Parse parameters
 	paramParts := strings.Split(parts[3], ",")
 	if len(paramParts) != 3 {
-		log.Printf("Invalid parameter format")
+		fmt.Println(msg.LogFailed(msg.ComponentAuth, "parameter format validation", "invalid format"))
 		return false
 	}
 
@@ -96,19 +96,19 @@ func VerifyPassword(password, hash string) bool {
 		if strings.HasPrefix(param, "m=") {
 			_, err := fmt.Sscanf(param, "m=%d", &memory)
 			if err != nil {
-				log.Printf("Failed to parse memory parameter: %v", err)
+				fmt.Println(msg.LogFailed(msg.ComponentAuth, "memory parameter parsing", err.Error()))
 				return false
 			}
 		} else if strings.HasPrefix(param, "t=") {
 			_, err := fmt.Sscanf(param, "t=%d", &time)
 			if err != nil {
-				log.Printf("Failed to parse time parameter: %v", err)
+				fmt.Println(msg.LogFailed(msg.ComponentAuth, "time parameter parsing", err.Error()))
 				return false
 			}
 		} else if strings.HasPrefix(param, "p=") {
 			_, err := fmt.Sscanf(param, "p=%d", &threads)
 			if err != nil {
-				log.Printf("Failed to parse threads parameter: %v", err)
+				fmt.Println(msg.LogFailed(msg.ComponentAuth, "threads parameter parsing", err.Error()))
 				return false
 			}
 		}
@@ -117,13 +117,13 @@ func VerifyPassword(password, hash string) bool {
 	// Decode salt and hash
 	salt, err := base64.RawStdEncoding.DecodeString(parts[4])
 	if err != nil {
-		log.Printf("Failed to decode salt: %v", err)
+		fmt.Println(msg.LogFailed(msg.ComponentAuth, "salt decoding", err.Error()))
 		return false
 	}
 
 	hashBytes, err := base64.RawStdEncoding.DecodeString(parts[5])
 	if err != nil {
-		log.Printf("Failed to decode hash: %v", err)
+		fmt.Println(msg.LogFailed(msg.ComponentAuth, "hash decoding", err.Error()))
 		return false
 	}
 
@@ -151,7 +151,7 @@ func (am *AuthManager) AuthenticateUser(userID int64, username string, command s
 	// Check if user is already authenticated (exists in database)
 	user, err := am.db.GetUser(userID)
 	if err != nil {
-		log.Printf("Failed to get user from database: %v", err)
+		fmt.Println(msg.LogFailed(msg.ComponentAuth, "user database lookup", err.Error()))
 		return AuthResult{Authorized: false, Reason: "Authentication system error"}
 	}
 
@@ -163,7 +163,7 @@ func (am *AuthManager) AuthenticateUser(userID int64, username string, command s
 	// User not authenticated, check failed authentication attempts
 	failCount, lastFail, err := am.db.GetFailedAuth(userID)
 	if err != nil {
-		log.Printf("Failed to get auth attempts for user %d: %v", userID, err)
+		fmt.Println(msg.LogFailed(msg.ComponentAuth, fmt.Sprintf("failed auth attempts for user %d", userID), err.Error()))
 		return AuthResult{Authorized: false, Reason: "Authentication system error"}
 	}
 
@@ -179,28 +179,28 @@ func (am *AuthManager) AuthenticateUser(userID int64, username string, command s
 		}
 		// Reset failed attempts if window has passed
 		if err := am.db.ResetFailedAuth(userID); err != nil {
-			log.Printf("Failed to reset auth attempts for user %d: %v", userID, err)
+			fmt.Println(msg.LogFailed(msg.ComponentAuth, fmt.Sprintf("resetting auth attempts for user %d", userID), err.Error()))
 		}
 	}
 
 	// Verify password if provided
 	if password == "" {
 		if err := am.db.IncrementFailedAuth(userID); err != nil {
-			log.Printf("Failed to increment auth attempts for user %d: %v", userID, err)
+			fmt.Println(msg.LogFailed(msg.ComponentAuth, fmt.Sprintf("incrementing auth attempts for user %d", userID), err.Error()))
 		}
 		return AuthResult{Authorized: false, Reason: "Password required for restricted commands"}
 	}
 
 	if !VerifyPassword(password, am.passwordHash) {
 		if err := am.db.IncrementFailedAuth(userID); err != nil {
-			log.Printf("Failed to increment auth attempts for user %d: %v", userID, err)
+			fmt.Println(msg.LogFailed(msg.ComponentAuth, fmt.Sprintf("incrementing auth attempts for user %d", userID), err.Error()))
 		}
 		return AuthResult{Authorized: false, Reason: "Invalid password"}
 	}
 
 	// Reset failed attempts on successful authentication
 	if err := am.db.ResetFailedAuth(userID); err != nil {
-		log.Printf("Failed to reset auth attempts for user %d: %v", userID, err)
+		fmt.Println(msg.LogFailed(msg.ComponentAuth, fmt.Sprintf("resetting auth attempts for user %d", userID), err.Error()))
 	}
 
 	return AuthResult{Authorized: true, Reason: "Authentication successful"}

@@ -2,10 +2,10 @@ package telegram
 
 import (
 	"fmt"
-	"log"
 	"time"
 
 	"tg-system-monitor/db"
+	msg "tg-system-monitor/message"
 
 	"github.com/PaulSonOfLars/gotgbot/v2"
 	"github.com/PaulSonOfLars/gotgbot/v2/ext"
@@ -18,19 +18,16 @@ func echoHandler(b *gotgbot.Bot, ctx *ext.Context) error {
 		return nil
 	}
 
-	log.Printf("Received message from %s (@%s): %s",
-		message.From.FirstName,
-		message.From.Username,
-		message.Text)
+	fmt.Println(msg.LogCompleted(msg.ComponentBot, fmt.Sprintf("message received from %s (@%s): %s", message.From.FirstName, message.From.Username, message.Text)))
 
 	// Echo the message back
 	_, err := message.Reply(b, fmt.Sprintf("Echo: %s", message.Text), nil)
 	if err != nil {
-		log.Printf("Failed to send echo reply: %v", err)
+		fmt.Println(msg.LogFailed(msg.ComponentBot, "echo reply", err.Error()))
 		return err
 	}
 
-	log.Printf("Sent echo reply to %s", message.From.FirstName)
+	fmt.Println(msg.LogCompleted(msg.ComponentBot, fmt.Sprintf("echo reply sent to %s", message.From.FirstName)))
 	return nil
 }
 
@@ -42,14 +39,12 @@ func pingHandler(database *db.DB, getLastMetricTime func() time.Time) func(b *go
 			return nil
 		}
 
-		log.Printf("Received /ping command from %s (@%s)",
-			message.From.FirstName,
-			message.From.Username)
+		fmt.Println(msg.LogCompleted(msg.ComponentBot, fmt.Sprintf("/ping command from %s (@%s)", message.From.FirstName, message.From.Username)))
 
 		// Check database connectivity
 		dbStatus := "no"
 		if err := database.Ping(); err != nil {
-			log.Printf("Database ping failed: %v", err)
+			fmt.Println(msg.LogFailed(msg.ComponentDatabase, "ping", err.Error()))
 		} else {
 			dbStatus = "yes"
 		}
@@ -71,11 +66,11 @@ func pingHandler(database *db.DB, getLastMetricTime func() time.Time) func(b *go
 			ParseMode: "markdown",
 		})
 		if err != nil {
-			log.Printf("Failed to send ping reply: %v", err)
+			fmt.Println(msg.LogFailed(msg.ComponentBot, "ping reply", err.Error()))
 			return err
 		}
 
-		log.Printf("Sent ping reply to %s", message.From.FirstName)
+		fmt.Println(msg.LogCompleted(msg.ComponentBot, fmt.Sprintf("ping reply sent to %s", message.From.FirstName)))
 		return nil
 	}
 }
@@ -88,15 +83,13 @@ func whoamiHandler(database *db.DB) func(b *gotgbot.Bot, ctx *ext.Context) error
 			return nil
 		}
 
-		log.Printf("Received /whoami command from %s (@%s)",
-			message.From.FirstName,
-			message.From.Username)
+		fmt.Println(msg.LogCompleted(msg.ComponentBot, fmt.Sprintf("/whoami command from %s (@%s)", message.From.FirstName, message.From.Username)))
 
 		// Get user from database
 		user, err := database.GetUser(message.From.Id)
 		if err != nil {
-			log.Printf("Failed to get user from database: %v", err)
-			_, err := message.Reply(b, "Error retrieving user information.", nil)
+			fmt.Println(msg.LogFailed(msg.ComponentDatabase, "user lookup", err.Error()))
+			_, err := message.Reply(b, msg.ErrorTemplate("User Retrieval Failed", "Unable to retrieve user information from database", "Please try again later"), nil)
 			return err
 		}
 
@@ -128,11 +121,11 @@ func whoamiHandler(database *db.DB) func(b *gotgbot.Bot, ctx *ext.Context) error
 			ParseMode: "markdown",
 		})
 		if err != nil {
-			log.Printf("Failed to send whoami reply: %v", err)
+			fmt.Println(msg.LogFailed(msg.ComponentBot, "whoami reply", err.Error()))
 			return err
 		}
 
-		log.Printf("Sent whoami reply to %s", message.From.FirstName)
+		fmt.Println(msg.LogCompleted(msg.ComponentBot, fmt.Sprintf("whoami reply sent to %s", message.From.FirstName)))
 		return nil
 	}
 }

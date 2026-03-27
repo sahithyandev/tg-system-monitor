@@ -15,6 +15,7 @@ import (
 	"tg-system-monitor/config"
 	"tg-system-monitor/db"
 	"tg-system-monitor/detection"
+	"tg-system-monitor/message"
 	"tg-system-monitor/metrics"
 	"tg-system-monitor/telegram"
 	"time"
@@ -49,37 +50,37 @@ func handleSetPassword() {
 	fmt.Print("Enter password for bot authentication: ")
 	password, err := reader.ReadString('\n')
 	if err != nil {
-		log.Fatalf("Error reading password: %v\n", err)
+		log.Fatalf("%s", message.LogFailed(message.ComponentMain, "password reading", err.Error()))
 	}
 
 	password = strings.TrimSpace(password)
 	if password == "" {
-		log.Fatal("Password cannot be empty")
+		log.Fatal(message.PasswordEmpty)
 	}
 
 	fmt.Print("Confirm password: ")
 	confirmPassword, err := reader.ReadString('\n')
 	if err != nil {
-		log.Fatalf("Error reading confirmation: %v\n", err)
+		log.Fatalf("%s", message.LogFailed(message.ComponentMain, "confirmation reading", err.Error()))
 	}
 
 	confirmPassword = strings.TrimSpace(confirmPassword)
 	if password != confirmPassword {
-		log.Fatal("Passwords do not match")
+		log.Fatal(message.PasswordMismatch)
 	}
 
 	// Hash the password
 	hash, err := auth.HashPassword(password)
 	if err != nil {
-		log.Fatalf("Error hashing password: %v\n", err)
+		log.Fatalf("%s", message.LogFailed(message.ComponentMain, "password hashing", err.Error()))
 	}
 
 	// Update only the password hash in config
 	if err := config.UpdatePasswordHash(hash); err != nil {
-		log.Fatalf("Error updating password hash: %v\n", err)
+		log.Fatalf("%s", message.LogFailed(message.ComponentMain, "password hash update", err.Error()))
 	}
 
-	fmt.Printf("\n✅ Password hash updated successfully in config file!\n")
+	fmt.Printf("%s\n", message.SuccessTemplate("Password Hash Updated", "Authentication password has been successfully configured"))
 	fmt.Printf("Users can now authenticate using the password you set.\n")
 	fmt.Printf("Hash: %s\n", hash)
 }
@@ -101,7 +102,7 @@ func runMonitor() {
 	// Load config
 	cfg, err := config.Load()
 	if err != nil {
-		log.Fatalf("Config Error: %v\n", err)
+		log.Fatalf("%s", message.LogFailed(message.ComponentConfig, "config loading", err.Error()))
 	}
 
 	// Display the finalized thresholds
@@ -109,15 +110,15 @@ func runMonitor() {
 
 	// Validate bot token
 	if cfg.BotToken == "" {
-		log.Fatal("Bot token is required in config")
+		log.Fatal(message.BotTokenRequired)
 	}
 
 	collector := metrics.NewCollector()
 
-	fmt.Printf("Initializing Database at %s...\n", cfg.DBPath)
+	fmt.Printf("%s\n", message.LogStarted(message.ComponentDatabase, cfg.DBPath))
 	database, err := db.Init(cfg.DBPath)
 	if err != nil {
-		log.Fatalf("DB Init Error: %v\n", err)
+		log.Fatalf("%s", message.LogFailed(message.ComponentDatabase, "initialization", err.Error()))
 	}
 	defer database.Close()
 
@@ -158,10 +159,10 @@ func runMonitor() {
 	detector := detection.NewDetectionEngine(database, detectionConfig)
 
 	// Initialize telegram bot
-	fmt.Println("Initializing Telegram bot...")
+	fmt.Printf("%s\n", message.LogStarted(message.ComponentBot, "telegram bot"))
 	tgBot, err := telegram.New(cfg, database)
 	if err != nil {
-		log.Fatalf("Failed to initialize telegram bot: %v\n", err)
+		log.Fatalf("%s", message.LogFailed(message.ComponentBot, "initialization", err.Error()))
 	}
 
 	// Initialize alert sender
@@ -173,13 +174,11 @@ func runMonitor() {
 
 	// Start telegram bot
 	if err := tgBot.Start(ctx); err != nil {
-		log.Fatalf("Failed to start telegram bot: %v\n", err)
+		log.Fatalf("%s", message.LogFailed(message.ComponentBot, "startup", err.Error()))
 	}
 
-	fmt.Printf("Starting metrics collection loop (Interval: %ds)...\n", cfg.PollInterval)
-	fmt.Println("Press Ctrl+C to stop")
-	fmt.Println("Detection engine enabled with database-stored alerts")
-	fmt.Println("Alert sender started with 30s interval")
+	fmt.Printf("%s\n", message.LogStarted(message.ComponentMetrics, fmt.Sprintf("metrics collection (interval: %ds)", cfg.PollInterval)))
+	fmt.Printf("%s\n", message.LogStarted(message.ComponentAlert, "alert sender (30s interval)"))
 
 	// Start alert sender in separate goroutine
 	go alertSender.Start(ctx)
@@ -196,25 +195,26 @@ func runMonitor() {
 		collect := func() {
 			sample, err := collector.Collect()
 			if err != nil {
-				log.Printf("Collection Error: %v\n", err)
+				log.Printf("%s", message.LogFailed(message.ComponentMetrics, "collection", err.Error()))
 				return
 			}
 
 			if err := database.SaveMetricSample(sample); err != nil {
-				log.Printf("DB Save Error: %v\n", err)
+				log.Printf("%s", message.LogFailed(message.ComponentDatabase, "metric save", err.Error()))
 				return
 			}
 
 			// Run detection evaluation
 			if err := detector.EvaluateDetections(); err != nil {
-				log.Printf("Detection Error: %v\n", err)
+				log.Printf("%s", message.LogFailed(message.ComponentDetection, "evaluation", err.Error()))
 			}
 
 			// Update last metric time in bot
 			tgBot.UpdateLastMetricTime(sample.Timestamp)
 
-			fmt.Printf("[%s] Sample saved. CPU: %.2f%%, Mem: %.2f%%\n",
-				sample.Timestamp.Format("15:04:05"), sample.CPUPercent, sample.MemPercent)
+			msg := message.LogCompleted(message.ComponentMetrics, fmt.Sprintf("saved metric sample. CPU: %.2f%%, Mem: %.2f%%, Disk: %.2f%%",
+				sample.CPUPercent, sample.MemPercent, sample.DiskPercent))
+			fmt.Printf("%s\n", msg)
 		}
 
 		collect()

@@ -3,7 +3,6 @@ package telegram
 import (
 	"context"
 	"fmt"
-	"log"
 	"log/slog"
 	"os"
 	"strings"
@@ -14,6 +13,7 @@ import (
 	"tg-system-monitor/config"
 	"tg-system-monitor/db"
 	"tg-system-monitor/detection"
+	msg "tg-system-monitor/message"
 
 	"github.com/PaulSonOfLars/gotgbot/v2"
 	"github.com/PaulSonOfLars/gotgbot/v2/ext"
@@ -42,7 +42,7 @@ func New(cfg *config.Config, database *db.DB) (*Bot, error) {
 	// Create updater and dispatcher
 	dispatcher := ext.NewDispatcher(&ext.DispatcherOpts{
 		Error: func(b *gotgbot.Bot, ctx *ext.Context, err error) ext.DispatcherAction {
-			log.Printf("Telegram dispatcher error: %v", err.Error())
+			fmt.Println(msg.LogFailed(msg.ComponentBot, "telegram dispatcher", err.Error()))
 			return ext.DispatcherActionNoop
 		},
 		MaxRoutines: ext.DefaultMaxRoutines,
@@ -99,7 +99,7 @@ func (b *Bot) Start(ctx context.Context) error {
 		return fmt.Errorf("failed to start polling: %w", err)
 	}
 
-	log.Printf("Telegram bot started successfully as @%s", b.bot.User.Username)
+	fmt.Println(msg.LogCompleted(msg.ComponentBot, fmt.Sprintf("telegram bot started as @%s", b.bot.User.Username)))
 
 	// Run updater in goroutine
 	go func() {
@@ -121,9 +121,9 @@ func (b *Bot) Stop() {
 	select {
 	case <-b.done:
 	case <-time.After(5 * time.Second):
-		log.Println("Telegram bot shutdown timeout")
+		fmt.Println(msg.LogFailed(msg.ComponentBot, "shutdown timeout", "timeout reached"))
 	}
-	log.Println("Telegram bot stopped")
+	fmt.Println(msg.LogCompleted(msg.ComponentBot, "telegram bot stopped"))
 }
 
 func (b *Bot) GetBot() *gotgbot.Bot {
@@ -146,16 +146,12 @@ func (b *Bot) SendAlert(alert detection.Alert, transition string) error {
 	}
 
 	// Format alert message
-	emoji := "⚠️"
-	if alert.Severity == detection.Critical {
-		emoji = "🚨"
-	}
-
-	message := fmt.Sprintf("%s *%s %s*\n%s",
-		emoji,
-		strings.Title(string(alert.Severity)),
+	alertMessage := msg.AlertTemplate(
 		strings.ToUpper(string(alert.Type)),
-		alert.Message)
+		string(alert.Severity),
+		strings.ToUpper(string(alert.Type)),
+		fmt.Sprintf("%.2f/%.2f", alert.Value, alert.Threshold),
+	)
 
 	// Send to all users with alerts enabled
 	var sentCount int
@@ -163,7 +159,7 @@ func (b *Bot) SendAlert(alert detection.Alert, transition string) error {
 
 	for _, user := range users {
 		if user.AlertsEnabled {
-			_, err := b.bot.SendMessage(user.ID, message, &gotgbot.SendMessageOpts{
+			_, err := b.bot.SendMessage(user.ID, alertMessage, &gotgbot.SendMessageOpts{
 				ParseMode: "markdown",
 			})
 			if err != nil {
@@ -175,12 +171,12 @@ func (b *Bot) SendAlert(alert detection.Alert, transition string) error {
 	}
 
 	if len(errors) > 0 {
-		return fmt.Errorf("failed to send alert to any user: %v", errors)
+		return fmt.Errorf("%s: %s", msg.LogFailed(msg.ComponentBot, "alert delivery", "multiple users failed"), strings.Join(errors, "; "))
 	}
 	if sentCount == 0 {
 		return nil
 	}
 
-	log.Printf("Alert sent to %d users: %s", sentCount, alert.Message)
+	fmt.Println(msg.LogCompleted(msg.ComponentBot, fmt.Sprintf("alert sent to %d users", sentCount)))
 	return nil
 }

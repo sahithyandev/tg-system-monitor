@@ -10,6 +10,7 @@ import (
 	"tg-system-monitor/config"
 	"tg-system-monitor/db"
 	"tg-system-monitor/formatter"
+	msg "tg-system-monitor/message"
 
 	"github.com/PaulSonOfLars/gotgbot/v2"
 	"github.com/PaulSonOfLars/gotgbot/v2/ext"
@@ -44,11 +45,11 @@ func authMiddleware(authManager *auth.AuthManager, handler func(b *gotgbot.Bot, 
 		)
 
 		if !result.Authorized {
-			_, err := message.Reply(b, fmt.Sprintf("🚫 *Access Denied*\n\n%s", result.Reason), &gotgbot.SendMessageOpts{
+			_, err := message.Reply(b, msg.AuthDeniedTemplate(result.Reason), &gotgbot.SendMessageOpts{
 				ParseMode: "markdown",
 			})
 			if err != nil {
-				log.Printf("Failed to send auth denial message: %v", err)
+				fmt.Println(msg.LogFailed(msg.ComponentBot, "auth denial message", err.Error()))
 			}
 			return nil
 		}
@@ -61,20 +62,19 @@ func authMiddleware(authManager *auth.AuthManager, handler func(b *gotgbot.Bot, 
 				message.From.FirstName,
 				message.From.LastName,
 			); err != nil {
-				log.Printf("Failed to create authenticated user record: %v", err)
-				_, err := message.Reply(b, "❌ Failed to create authentication record.", nil)
+				fmt.Println(msg.LogFailed(msg.ComponentAuth, "user record creation", err.Error()))
+				_, err := message.Reply(b, msg.ErrorTemplate("Authentication Failed", "Unable to create user authentication record", "Please try again or contact administrator"), nil)
 				return err
 			}
 
 			// Send authentication success message
-			response := fmt.Sprintf("✅ *Authentication Successful*\n\n👤 **User:** %s (@%s)\n🆔 **ID:** `%d`\n🔐 **Status:** Authorized to use restricted commands",
-				message.From.FirstName, message.From.Username, message.From.Id)
+			response := msg.AuthSuccessTemplate(message.From.FirstName, message.From.Username, message.From.Id)
 
 			_, err := message.Reply(b, response, &gotgbot.SendMessageOpts{
 				ParseMode: "markdown",
 			})
 			if err != nil {
-				log.Printf("Failed to send auth success message: %v", err)
+				fmt.Println(msg.LogFailed(msg.ComponentBot, "auth success message", err.Error()))
 			}
 		}
 
@@ -93,19 +93,17 @@ func joinHandler(authManager *auth.AuthManager, database *db.DB) func(b *gotgbot
 
 		// Check if command is used in a private chat
 		if message.Chat.Type != "private" {
-			_, err := message.Reply(b, "🚫 *Access Denied*\n\nThe `/join` command can only be used in private chats.", &gotgbot.SendMessageOpts{
+			_, err := message.Reply(b, msg.AuthDeniedTemplate("The `/join` command can only be used in private chats"), &gotgbot.SendMessageOpts{
 				ParseMode: "markdown",
 			})
 			if err != nil {
-				log.Printf("Failed to send private chat denial message: %v", err)
+				fmt.Println(msg.LogFailed(msg.ComponentBot, "private chat denial message", err.Error()))
 			}
-			log.Printf("Rejected /join command from non-private chat (type: %s) by user %s (@%s)",
-				message.Chat.Type, message.From.FirstName, message.From.Username)
+			fmt.Println(msg.LogIgnored(msg.ComponentBot, "/join command", fmt.Sprintf("non-private chat (%s) by user %s (@%s)", message.Chat.Type, message.From.FirstName, message.From.Username)))
 			return nil
 		}
 
-		log.Printf("Received /join command from %s (@%s) in private chat",
-			message.From.FirstName, message.From.Username)
+		fmt.Println(msg.LogCompleted(msg.ComponentBot, fmt.Sprintf("/join command from %s (@%s) in private chat", message.From.FirstName, message.From.Username)))
 
 		// Extract password from message to check if this is initial authentication
 		parts := strings.Fields(message.Text)
@@ -130,24 +128,23 @@ func joinHandler(authManager *auth.AuthManager, database *db.DB) func(b *gotgbot
 			}
 
 			if err := database.UpdateUser(user); err != nil {
-				log.Printf("Failed to create/update user record: %v", err)
-				_, err := message.Reply(b, "❌ Failed to create user record.", nil)
+				fmt.Println(msg.LogFailed(msg.ComponentDatabase, "user record update", err.Error()))
+				_, err := message.Reply(b, msg.ErrorTemplate("User Registration Failed", "Unable to create or update user record", "Please try again later"), nil)
 				return err
 			}
 
-			response := fmt.Sprintf("✅ *Authentication Successful*\n\n👤 **User:** %s (@%s)\n🆔 **ID:** `%d`\n🔐 **Status:** Authorized to use restricted commands",
-				message.From.FirstName, message.From.Username, message.From.Id)
+			response := msg.AuthSuccessTemplate(message.From.FirstName, message.From.Username, message.From.Id)
 
 			_, err := message.Reply(b, response, &gotgbot.SendMessageOpts{
 				ParseMode: "markdown",
 			})
 			if err != nil {
-				log.Printf("Failed to send join confirmation: %v", err)
+				fmt.Println(msg.LogFailed(msg.ComponentBot, "join confirmation", err.Error()))
 				return err
 			}
 		}
 
-		log.Printf("User %s (@%s) authenticated successfully", message.From.FirstName, message.From.Username)
+		fmt.Println(msg.LogCompleted(msg.ComponentAuth, fmt.Sprintf("user authenticated: %s (@%s)", message.From.FirstName, message.From.Username)))
 		return nil
 	})
 }
@@ -160,28 +157,26 @@ func leaveHandler(authManager *auth.AuthManager, database *db.DB) func(b *gotgbo
 			return nil
 		}
 
-		log.Printf("Received /leave command from %s (@%s)",
-			message.From.FirstName, message.From.Username)
+		fmt.Println(msg.LogCompleted(msg.ComponentBot, fmt.Sprintf("/leave command from %s (@%s)", message.From.FirstName, message.From.Username)))
 
 		// Delete user from database
 		if err := database.DeleteUser(message.From.Id); err != nil {
-			log.Printf("Failed to delete user record: %v", err)
-			_, replyErr := message.Reply(b, "❌ Failed to delete user record.", nil)
+			fmt.Println(msg.LogFailed(msg.ComponentDatabase, "user deletion", err.Error()))
+			_, replyErr := message.Reply(b, msg.ErrorTemplate("User Removal Failed", "Unable to delete user record from system", "Please try again later"), nil)
 			return replyErr
 		}
 
-		response := fmt.Sprintf("👋 *User Removed*\n\n👤 **User:** %s (@%s)\n🆔 **ID:** `%d`\n🔐 **Status:** User record deleted from system",
-			message.From.FirstName, message.From.Username, message.From.Id)
+		response := msg.SuccessTemplate("User Removed", fmt.Sprintf("User %s (@%s) has been removed from the system", message.From.FirstName, message.From.Username))
 
 		_, err := message.Reply(b, response, &gotgbot.SendMessageOpts{
 			ParseMode: "markdown",
 		})
 		if err != nil {
-			log.Printf("Failed to send leave confirmation: %v", err)
+			fmt.Println(msg.LogFailed(msg.ComponentBot, "leave confirmation", err.Error()))
 			return err
 		}
 
-		log.Printf("User %s (@%s) deleted from database", message.From.FirstName, message.From.Username)
+		fmt.Println(msg.LogCompleted(msg.ComponentDatabase, fmt.Sprintf("user deleted: %s (@%s)", message.From.FirstName, message.From.Username)))
 		return nil
 	})
 }
@@ -194,29 +189,27 @@ func allowHandler(authManager *auth.AuthManager, database *db.DB) func(b *gotgbo
 			return nil
 		}
 
-		log.Printf("Received /allow command from %s (@%s)",
-			message.From.FirstName, message.From.Username)
+		fmt.Println(msg.LogCompleted(msg.ComponentBot, fmt.Sprintf("/allow command from %s (@%s)", message.From.FirstName, message.From.Username)))
 
 		// Get user info for response
 		_, err := database.GetUser(message.From.Id)
 		if err != nil {
-			log.Printf("Failed to get user info: %v", err)
-			_, err := message.Reply(b, "❌ Error retrieving user information.", nil)
+			fmt.Println(msg.LogFailed(msg.ComponentDatabase, "user lookup", err.Error()))
+			_, err := message.Reply(b, msg.ErrorTemplate("User Retrieval Failed", "Unable to retrieve user information from database", "Please try again later"), nil)
 			return err
 		}
 
-		response := fmt.Sprintf("✅ *Authentication Verified*\n\n👤 **User:** %s (@%s)\n🔐 **Status:** Authenticated for restricted commands\n\nℹ️ *Note:* Allowlist system has been removed. Any user with the correct password can access restricted commands.",
-			message.From.FirstName, message.From.Username)
+		response := msg.SuccessTemplate("Authentication Verified", fmt.Sprintf("User %s (@%s) is authenticated for restricted commands", message.From.FirstName, message.From.Username))
 
 		_, err = message.Reply(b, response, &gotgbot.SendMessageOpts{
 			ParseMode: "markdown",
 		})
 		if err != nil {
-			log.Printf("Failed to send allow confirmation: %v", err)
+			fmt.Println(msg.LogFailed(msg.ComponentBot, "allow confirmation", err.Error()))
 			return err
 		}
 
-		log.Printf("User %s (@%s) verified authentication", message.From.FirstName, message.From.Username)
+		fmt.Println(msg.LogCompleted(msg.ComponentAuth, fmt.Sprintf("user verified: %s (@%s)", message.From.FirstName, message.From.Username)))
 		return nil
 	})
 }
@@ -229,29 +222,27 @@ func disallowHandler(authManager *auth.AuthManager, database *db.DB) func(b *got
 			return nil
 		}
 
-		log.Printf("Received /disallow command from %s (@%s)",
-			message.From.FirstName, message.From.Username)
+		fmt.Println(msg.LogCompleted(msg.ComponentBot, fmt.Sprintf("/disallow command from %s (@%s)", message.From.FirstName, message.From.Username)))
 
 		// Get user info for response
 		_, err := database.GetUser(message.From.Id)
 		if err != nil {
-			log.Printf("Failed to get user info: %v", err)
-			_, err := message.Reply(b, "❌ Error retrieving user information.", nil)
+			fmt.Println(msg.LogFailed(msg.ComponentDatabase, "user lookup", err.Error()))
+			_, err := message.Reply(b, msg.ErrorTemplate("User Retrieval Failed", "Unable to retrieve user information from database", "Please try again later"), nil)
 			return err
 		}
 
-		response := fmt.Sprintf("🔒 *Authentication Confirmed*\n\n👤 **User:** %s (@%s)\n🔐 **Status:** Authenticated for restricted commands\n\nℹ️ *Note:* Allowlist system has been removed. Any user with the correct password can access restricted commands.",
-			message.From.FirstName, message.From.Username)
+		response := msg.SuccessTemplate("Authentication Confirmed", fmt.Sprintf("User %s (@%s) is authenticated for restricted commands", message.From.FirstName, message.From.Username))
 
 		_, err = message.Reply(b, response, &gotgbot.SendMessageOpts{
 			ParseMode: "markdown",
 		})
 		if err != nil {
-			log.Printf("Failed to send disallow confirmation: %v", err)
+			fmt.Println(msg.LogFailed(msg.ComponentBot, "disallow confirmation", err.Error()))
 			return err
 		}
 
-		log.Printf("User %s (@%s) confirmed authentication", message.From.FirstName, message.From.Username)
+		fmt.Println(msg.LogCompleted(msg.ComponentAuth, fmt.Sprintf("user verified: %s (@%s)", message.From.FirstName, message.From.Username)))
 		return nil
 	})
 }
@@ -266,24 +257,23 @@ func alertsHandler(authManager *auth.AuthManager, database *db.DB) func(b *gotgb
 
 		parts := strings.Fields(message.Text)
 		if len(parts) < 2 {
-			_, err := message.Reply(b, "Usage: /alerts <on|off>", nil)
+			_, err := message.Reply(b, msg.ErrorTemplate("Invalid Arguments", "Usage: /alerts <on|off>", "Please specify 'on' or 'off'"), nil)
 			return err
 		}
 
 		action := strings.ToLower(parts[1])
 		if action != "on" && action != "off" {
-			_, err := message.Reply(b, "❌ Invalid action. Use 'on' or 'off'", nil)
+			_, err := message.Reply(b, msg.ErrorTemplate("Invalid Arguments", "Usage: /alerts <on|off>", "Please specify 'on' or 'off'"), nil)
 			return err
 		}
 
-		log.Printf("Received /alerts command from %s (@%s): %s",
-			message.From.FirstName, message.From.Username, action)
+		fmt.Println(msg.LogCompleted(msg.ComponentBot, fmt.Sprintf("/alerts command from %s (@%s): %s", message.From.FirstName, message.From.Username, action)))
 
 		// Get or create user record
 		user, err := database.GetUser(message.From.Id)
 		if err != nil {
-			log.Printf("Failed to get user info: %v", err)
-			_, err := message.Reply(b, "❌ Error retrieving user information.", nil)
+			fmt.Println(msg.LogFailed(msg.ComponentDatabase, "user lookup", err.Error()))
+			_, err := message.Reply(b, msg.ErrorTemplate("User Retrieval Failed", "Unable to retrieve user information from database", "Please try again later"), nil)
 			return err
 		}
 

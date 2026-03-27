@@ -3,12 +3,12 @@ package db
 import (
 	"database/sql"
 	"fmt"
-	"log"
 	"math"
 	"os"
 	"path/filepath"
 	"time"
 
+	msg "tg-system-monitor/message"
 	"tg-system-monitor/metrics"
 
 	_ "modernc.org/sqlite"
@@ -135,7 +135,7 @@ func (db *DB) migrate() error {
 
 	// Handle migration from old allowlist system to new password-only system
 	if err := db.migrateFromAllowlist(); err != nil {
-		log.Printf("Warning: Failed to migrate from allowlist system: %v", err)
+		fmt.Println(msg.LogFailed(msg.ComponentDatabase, "migration from allowlist", err.Error()))
 	}
 
 	return nil
@@ -206,7 +206,7 @@ func (db *DB) migrateFromAllowlist() error {
 		return err
 	}
 
-	log.Printf("Successfully migrated from allowlist system to password-only system")
+	fmt.Println(msg.LogCompleted(msg.ComponentDatabase, "migration from allowlist to password-only system completed"))
 	return nil
 }
 
