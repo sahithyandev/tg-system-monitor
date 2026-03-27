@@ -34,15 +34,9 @@ func getDefaultConfig(configDir string) *Config {
 			DiskRecoveryPercent:  90,
 			AlertCooldownSeconds: 1800,
 			TopProcessCount:      5,
-			DBPath:               filepath.Join(configDir, "telemon.db"),
+			DBPath:               filepath.Join(configDir, "tgsm1.db"),
 		}
 	}
-
-	// Ensure DBPath uses the config directory
-	if c.DBPath == "" {
-		c.DBPath = filepath.Join(configDir, "telemon.db")
-	}
-
 	return &c
 }
 
@@ -178,11 +172,13 @@ func Load() (*Config, error) {
 
 	// Always load default config first
 	defaultConfig := getDefaultConfig(configDir)
+	fmt.Println("defaultConfig", defaultConfig)
 
 	path, err := GetConfigPath()
 	if err != nil {
 		return nil, err
 	}
+	fmt.Println("path", path)
 
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -197,6 +193,7 @@ func Load() (*Config, error) {
 	if err := yaml.Unmarshal(data, &userConfig); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal user config: %w", err)
 	}
+	fmt.Println("userConfig", userConfig)
 
 	// Merge user config with defaults
 	mergedConfig := mergeConfigs(defaultConfig, &userConfig)

@@ -38,4 +38,4 @@ alert_cooldown_seconds: 1800
 top_process_count: 5
 
 # Database path
-db_path: "~/.config/tg-system-monitor/telemon.db"
+db_path: "~/.config/tg-system-monitor/tgsm.db"
