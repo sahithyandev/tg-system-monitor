@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"tg-system-monitor/message"
 	msg "tg-system-monitor/message"
 
 	"gopkg.in/yaml.v3"
@@ -65,7 +66,7 @@ func getDefaultConfig(configDir string) *Config {
 			Hysteresis:           5.0,
 			AlertCooldownSeconds: 1800,
 			TopProcessCount:      5,
-			DBPath:               filepath.Join(configDir, "tgsm1.db"),
+			DBPath:               filepath.Join(configDir, "tgsm.db"),
 		}
 	}
 	return &c
@@ -259,6 +260,8 @@ func Load() (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	fmt.Printf("%s\n", message.LogStarted(message.ComponentConfig, fmt.Sprintf("using config file: %s", path)))
 
 	data, err := os.ReadFile(path)
 	if err != nil {
