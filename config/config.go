@@ -234,3 +234,44 @@ func (c *Config) Save() error {
 
 	return nil
 }
+
+// UpdatePasswordHash updates only the join_password_hash field in the user config file
+// without affecting other configuration fields
+func UpdatePasswordHash(hash string) error {
+	path, err := GetConfigPath()
+	if err != nil {
+		return fmt.Errorf("failed to get config path: %w", err)
+	}
+
+	var userConfig map[string]interface{}
+
+	// Try to read existing user config
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			return fmt.Errorf("failed to read config file: %w", err)
+		}
+		// Config file doesn't exist, create empty config
+		userConfig = make(map[string]interface{})
+	} else {
+		// Parse existing config
+		if err := yaml.Unmarshal(data, &userConfig); err != nil {
+			return fmt.Errorf("failed to unmarshal existing config: %w", err)
+		}
+	}
+
+	// Update only the password hash field
+	userConfig["join_password_hash"] = hash
+
+	// Marshal and write back
+	data, err = yaml.Marshal(userConfig)
+	if err != nil {
+		return fmt.Errorf("failed to marshal config: %w", err)
+	}
+
+	if err := os.WriteFile(path, data, 0644); err != nil {
+		return fmt.Errorf("failed to write config file: %w", err)
+	}
+
+	return nil
+}

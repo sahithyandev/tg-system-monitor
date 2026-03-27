@@ -74,18 +74,9 @@ func handleSetPassword() {
 		log.Fatalf("Error hashing password: %v\n", err)
 	}
 
-	// Load existing config
-	cfg, err := config.Load()
-	if err != nil {
-		log.Fatalf("Error loading config: %v\n", err)
-	}
-
-	// Update password hash
-	cfg.JoinPasswordHash = hash
-
-	// Save config
-	if err := cfg.Save(); err != nil {
-		log.Fatalf("Error saving config: %v\n", err)
+	// Update only the password hash in config
+	if err := config.UpdatePasswordHash(hash); err != nil {
+		log.Fatalf("Error updating password hash: %v\n", err)
 	}
 
 	fmt.Printf("\n✅ Password hash updated successfully in config file!\n")

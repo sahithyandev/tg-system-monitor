@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"gopkg.in/yaml.v3"
 )
 
 func init() {
@@ -424,5 +426,99 @@ func Test_Load_WithInvalidUserConfig(t *testing.T) {
 	_, err := Load()
 	if err == nil {
 		t.Error("expected error for invalid user config, got nil")
+	}
+}
+
+func Test_UpdatePasswordHash(t *testing.T) {
+	tmpDir := t.TempDir()
+	tmpFile := filepath.Join(tmpDir, "config.yml")
+
+	// Override GetConfigPath
+	old := GetConfigPath
+	GetConfigPath = func() (string, error) {
+		return tmpFile, nil
+	}
+	defer func() { GetConfigPath = old }()
+
+	tests := []struct {
+		name           string
+		existingConfig string
+		newHash        string
+		expectedFields map[string]interface{}
+	}{
+		{
+			name:           "No existing config file",
+			existingConfig: "",
+			newHash:        "argon2id$v=19$m=65536,t=3,p=4$test$test",
+			expectedFields: map[string]interface{}{
+				"join_password_hash": "argon2id$v=19$m=65536,t=3,p=4$test$test",
+			},
+		},
+		{
+			name:           "Existing config with other fields",
+			existingConfig: "bot_token: \"user_token\"\npoll_interval_seconds: 30\nhostname_override: \"myhost\"",
+			newHash:        "argon2id$v=19$m=65536,t=3,p=4$newhash$newhash",
+			expectedFields: map[string]interface{}{
+				"bot_token":             "user_token",
+				"poll_interval_seconds": 30,
+				"hostname_override":     "myhost",
+				"join_password_hash":    "argon2id$v=19$m=65536,t=3,p=4$newhash$newhash",
+			},
+		},
+		{
+			name:           "Existing config with password hash",
+			existingConfig: "bot_token: \"user_token\"\njoin_password_hash: \"old_hash\"",
+			newHash:        "argon2id$v=19$m=65536,t=3,p=4$updated$updated",
+			expectedFields: map[string]interface{}{
+				"bot_token":          "user_token",
+				"join_password_hash": "argon2id$v=19$m=65536,t=3,p=4$updated$updated",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Clean up before each test
+			os.Remove(tmpFile)
+
+			// Write existing config if provided
+			if tt.existingConfig != "" {
+				if err := os.WriteFile(tmpFile, []byte(tt.existingConfig), 0644); err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			// Update password hash
+			if err := UpdatePasswordHash(tt.newHash); err != nil {
+				t.Fatalf("UpdatePasswordHash() error = %v", err)
+			}
+
+			// Read the resulting config and parse it
+			data, err := os.ReadFile(tmpFile)
+			if err != nil {
+				t.Fatalf("Error reading config file: %v", err)
+			}
+
+			var result map[string]interface{}
+			if err := yaml.Unmarshal(data, &result); err != nil {
+				t.Fatalf("Error parsing resulting config: %v", err)
+			}
+
+			// Check that all expected fields are present with correct values
+			for key, expectedValue := range tt.expectedFields {
+				if actualValue, exists := result[key]; !exists {
+					t.Errorf("Expected field '%s' not found in config", key)
+				} else if actualValue != expectedValue {
+					t.Errorf("Field '%s' value mismatch. Got: %v, Expected: %v", key, actualValue, expectedValue)
+				}
+			}
+
+			// Check that no unexpected fields are present (only for the first test case)
+			if tt.name == "No existing config file" {
+				if len(result) != 1 {
+					t.Errorf("Expected exactly 1 field in config, got %d: %v", len(result), result)
+				}
+			}
+		})
 	}
 }
