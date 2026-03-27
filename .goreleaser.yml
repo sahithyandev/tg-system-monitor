@@ -48,35 +48,6 @@ changelog:
     - title: Others
       order: 999
 
-dockers:
-  - image_templates:
-      - "ghcr.io/sahithyandev/tg-system-monitor:{{ .Tag }}"
-      - "ghcr.io/sahithyandev/tg-system-monitor:v{{ .Major }}"
-      - "ghcr.io/sahithyandev/tg-system-monitor:v{{ .Major }}.{{ .Minor }}"
-      - "ghcr.io/sahithyandev/tg-system-monitor:latest"
-    dockerfile: Dockerfile
-    build_flag_templates:
-      - "--pull"
-      - "--label=org.opencontainers.image.created={{.Date}}"
-      - "--label=org.opencontainers.image.title={{.ProjectName}}"
-      - "--label=org.opencontainers.image.revision={{.FullCommit}}"
-      - "--label=org.opencontainers.image.version={{.Version}}"
-      - "--platform=linux/amd64"
-
-  - image_templates:
-      - "ghcr.io/sahithyandev/tg-system-monitor:{{ .Tag }}-arm64"
-      - "ghcr.io/sahithyandev/tg-system-monitor:v{{ .Major }}.{{ .Minor }}-arm64"
-    goos: linux
-    goarch: arm64
-    dockerfile: Dockerfile
-    build_flag_templates:
-      - "--pull"
-      - "--label=org.opencontainers.image.created={{.Date}}"
-      - "--label=org.opencontainers.image.title={{.ProjectName}}"
-      - "--label=org.opencontainers.image.revision={{.FullCommit}}"
-      - "--label=org.opencontainers.image.version={{.Version}}"
-      - "--platform=linux/arm64"
-
 # The lines beneath this are called `modelines`. See `:help modeline`
 # Feel free to remove those if you don't want/use them.
 # yaml-language-server: $schema=https://goreleaser.com/static/schema.json
