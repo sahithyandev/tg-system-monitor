@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	msg "tg-system-monitor/message"
 
@@ -12,6 +13,27 @@ import (
 )
 
 var DefaultConfigYAML string
+
+// expandPath expands ~ to the user's home directory
+func expandPath(path string) string {
+	if path == "~" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			// If we can't get the home directory, return the path as-is
+			return path
+		}
+		return home
+	}
+	if strings.HasPrefix(path, "~/") {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			// If we can't get the home directory, return the path as-is
+			return path
+		}
+		return filepath.Join(home, path[2:])
+	}
+	return path
+}
 
 // getDefaultConfig loads the default configuration from embedded default-config.yml
 func getDefaultConfig(configDir string) *Config {
@@ -241,6 +263,8 @@ func Load() (*Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
+			// Expand ~ in DBPath for default config
+			defaultConfig.DBPath = expandPath(defaultConfig.DBPath)
 			// Return default config if user config file doesn't exist
 			return defaultConfig, nil
 		}
@@ -254,6 +278,9 @@ func Load() (*Config, error) {
 
 	// Merge user config with defaults
 	mergedConfig := mergeConfigs(defaultConfig, &userConfig)
+
+	// Expand ~ in DBPath to user's home directory
+	mergedConfig.DBPath = expandPath(mergedConfig.DBPath)
 
 	if err := mergedConfig.Validate(); err != nil {
 		return nil, err

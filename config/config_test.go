@@ -589,3 +589,89 @@ func Test_UpdatePasswordHash(t *testing.T) {
 		})
 	}
 }
+
+func Test_expandPath(t *testing.T) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		t.Fatalf("Failed to get user home directory: %v", err)
+	}
+
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "Path with ~",
+			input:    "~/.config/tg-system-monitor/tgsm.db",
+			expected: filepath.Join(home, ".config/tg-system-monitor/tgsm.db"),
+		},
+		{
+			name:     "Path with ~ and simple file",
+			input:    "~/test.db",
+			expected: filepath.Join(home, "test.db"),
+		},
+		{
+			name:     "Absolute path without ~",
+			input:    "/tmp/test.db",
+			expected: "/tmp/test.db",
+		},
+		{
+			name:     "Relative path without ~",
+			input:    "./local.db",
+			expected: "./local.db",
+		},
+		{
+			name:     "Empty string",
+			input:    "",
+			expected: "",
+		},
+		{
+			name:     "Just ~",
+			input:    "~",
+			expected: home,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := expandPath(tt.input)
+			if result != tt.expected {
+				t.Errorf("expandPath(%q) = %q, want %q", tt.input, result, tt.expected)
+			}
+		})
+	}
+}
+
+func Test_Load_DBPathExpansion(t *testing.T) {
+	tmpDir := t.TempDir()
+	tmpFile := filepath.Join(tmpDir, "config.yml")
+
+	// Override GetConfigPath
+	old := GetConfigPath
+	GetConfigPath = func() (string, error) {
+		return tmpFile, nil
+	}
+	defer func() { GetConfigPath = old }()
+
+	// Write user config with ~ in db_path
+	userConfig := `db_path: "~/test_expansion.db"`
+	if err := os.WriteFile(tmpFile, []byte(userConfig), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	home, err := os.UserHomeDir()
+	if err != nil {
+		t.Fatalf("Failed to get home directory: %v", err)
+	}
+
+	expectedPath := filepath.Join(home, "test_expansion.db")
+	if cfg.DBPath != expectedPath {
+		t.Errorf("DBPath expansion failed. Expected: %s, Got: %s", expectedPath, cfg.DBPath)
+	}
+}
