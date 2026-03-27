@@ -1,0 +1,36 @@
+[Unit]
+Description=Telegram System Monitor (tgsm)
+After=network.target
+
+[Service]
+Type=simple
+User=tgsm
+Group=tgsm
+ExecStart=/usr/local/bin/tgsm
+Restart=always
+RestartSec=10
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/tgsm /var/log/tgsm
+
+# Resource limits
+LimitNOFILE=65536
+LimitNPROC=4096
+
+# Environment
+Environment=HOME=/var/lib/tgsm
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=tgsm
+
+[Install]
+WantedBy=multi-user.target
