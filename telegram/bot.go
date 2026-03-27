@@ -174,8 +174,11 @@ func (b *Bot) SendAlert(alert detection.Alert, transition string) error {
 		}
 	}
 
-	if sentCount == 0 && len(errors) > 0 {
+	if len(errors) > 0 {
 		return fmt.Errorf("failed to send alert to any user: %v", errors)
+	}
+	if sentCount == 0 {
+		return nil
 	}
 
 	log.Printf("Alert sent to %d users: %s", sentCount, alert.Message)
