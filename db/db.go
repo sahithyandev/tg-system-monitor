@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"log"
 	"math"
+	"os"
+	"path/filepath"
 	"time"
 
 	"tg-system-monitor/metrics"
@@ -36,6 +38,12 @@ type DB struct {
 }
 
 func Init(path string) (*DB, error) {
+	// Ensure the database directory exists
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return nil, fmt.Errorf("failed to create database directory: %w", err)
+	}
+
 	conn, err := sql.Open("sqlite", path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %w", err)
