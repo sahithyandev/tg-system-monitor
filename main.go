@@ -24,6 +24,13 @@ import (
 //go:embed default-config.yml
 var DefaultConfigYAML string
 
+// Version variables set by GoReleaser
+var (
+	version = "dev"
+	commit  = "unknown"
+	date    = "unknown"
+)
+
 func main() {
 	// Set the default config first - needed for all commands
 	config.DefaultConfigYAML = DefaultConfigYAML
@@ -33,6 +40,9 @@ func main() {
 		switch os.Args[1] {
 		case "set-password":
 			handleSetPassword()
+			return
+		case "version":
+			handleVersion()
 			return
 		case "help", "-h", "--help":
 			printHelp()
@@ -85,17 +95,28 @@ func handleSetPassword() {
 	fmt.Printf("Hash: %s\n", hash)
 }
 
+func handleVersion() {
+	if version != "dev" {
+		fmt.Printf("tgsm version %s\n", version)
+	} else {
+		fmt.Printf("tgsm version %s (commit: %s)\n", version, commit)
+	}
+	fmt.Printf("Built: %s\n", date)
+}
+
 func printHelp() {
 	fmt.Printf("Telegram System Monitor\n\n")
 	fmt.Printf("Usage:\n")
 	fmt.Printf("  %s [command]\n\n", os.Args[0])
 	fmt.Printf("Commands:\n")
 	fmt.Printf("  set-password    Set authentication password for restricted commands\n")
+	fmt.Printf("  version         Show version information\n")
 	fmt.Printf("  help, -h, --help  Show this help message\n\n")
 	fmt.Printf("If no command is provided, the system monitor will start.\n\n")
 	fmt.Printf("Examples:\n")
 	fmt.Printf("  %s                # Start the monitor\n", os.Args[0])
 	fmt.Printf("  %s set-password   # Set authentication password\n", os.Args[0])
+	fmt.Printf("  %s version        # Show version information\n", os.Args[0])
 }
 
 func runMonitor() {
