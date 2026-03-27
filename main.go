@@ -111,7 +111,9 @@ func runMonitor() {
 	if err != nil {
 		log.Fatalf("Config Error: %v\n", err)
 	}
-	fmt.Printf("Config loaded: Poll Interval = %ds\n", cfg.PollInterval)
+
+	// Display the finalized thresholds
+	cfg.PrintThresholds()
 
 	// Validate bot token
 	if cfg.BotToken == "" {

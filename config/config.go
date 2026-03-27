@@ -66,6 +66,21 @@ type Config struct {
 	DBPath               string `yaml:"db_path"`
 }
 
+func (c *Config) PrintThresholds() {
+	fmt.Println("\nSystem Monitor Thresholds:")
+	fmt.Println("==========================")
+
+	fmt.Printf("CPU     | Warning: %.1f%% | Critical: %.1f%% | Sustain: %ds\n",
+		c.CPURecoveryPercent, c.CPUThresholdPercent, c.CPUSustainSeconds)
+	fmt.Printf("Memory  | Warning: %.1f%% | Critical: %.1f%% | Sustain: %ds\n",
+		c.MemRecoveryPercent, c.MemThresholdPercent, c.MemSustainSeconds)
+	fmt.Printf("Swap    | Warning: %.1f%% | Critical: %.1f%% | Sustain: %ds\n",
+		c.SwapRecoveryPercent, c.SwapThresholdPercent, c.SwapSustainSeconds)
+	fmt.Printf("Disk    | Warning: %.1f%% | Critical: %.1f%% | Sustain: -\n",
+		c.DiskRecoveryPercent, c.DiskThresholdPercent)
+	fmt.Println()
+}
+
 func (c *Config) Validate() error {
 	if c.PollInterval < 1 {
 		return fmt.Errorf("poll_interval_seconds must be at least 1")
@@ -172,13 +187,11 @@ func Load() (*Config, error) {
 
 	// Always load default config first
 	defaultConfig := getDefaultConfig(configDir)
-	fmt.Println("defaultConfig", defaultConfig)
 
 	path, err := GetConfigPath()
 	if err != nil {
 		return nil, err
 	}
-	fmt.Println("path", path)
 
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -193,7 +206,6 @@ func Load() (*Config, error) {
 	if err := yaml.Unmarshal(data, &userConfig); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal user config: %w", err)
 	}
-	fmt.Println("userConfig", userConfig)
 
 	// Merge user config with defaults
 	mergedConfig := mergeConfigs(defaultConfig, &userConfig)
