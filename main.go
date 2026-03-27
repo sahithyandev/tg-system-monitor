@@ -9,9 +9,11 @@ import (
 	"os/signal"
 	"strings"
 	"syscall"
+	"tg-system-monitor/alert"
 	"tg-system-monitor/auth"
 	"tg-system-monitor/config"
 	"tg-system-monitor/db"
+	"tg-system-monitor/detection"
 	"tg-system-monitor/metrics"
 	"tg-system-monitor/telegram"
 	"time"
@@ -119,12 +121,51 @@ func runMonitor() {
 	}
 	defer database.Close()
 
+	// Initialize detection engine with config values and fallbacks
+	detectionConfig := detection.DetectionConfig{
+		CPU: detection.Threshold{
+			Warning:  cfg.CPURecoveryPercent,  // Use recovery as warning threshold
+			Critical: cfg.CPUThresholdPercent, // Use threshold as critical
+		},
+		Memory: detection.Threshold{
+			Warning:  cfg.MemRecoveryPercent,
+			Critical: cfg.MemThresholdPercent,
+		},
+		Disk: detection.Threshold{
+			Warning:  cfg.DiskRecoveryPercent,
+			Critical: cfg.DiskThresholdPercent,
+		},
+		Swap: detection.Threshold{
+			Warning:  cfg.SwapRecoveryPercent,
+			Critical: cfg.SwapThresholdPercent,
+		},
+		Load1: detection.Threshold{
+			Warning:  2.0, // Fallback values for load thresholds
+			Critical: 4.0,
+		},
+		Load5: detection.Threshold{
+			Warning:  1.5,
+			Critical: 3.0,
+		},
+		Load15: detection.Threshold{
+			Warning:  1.0,
+			Critical: 2.0,
+		},
+		WindowSecs:   cfg.CPUSustainSeconds, // Use CPU sustain seconds as window
+		CooldownSecs: cfg.AlertCooldownSeconds,
+		Hysteresis:   5.0, // 5% hysteresis fallback
+	}
+	detector := detection.NewDetectionEngine(database, detectionConfig)
+
 	// Initialize telegram bot
 	fmt.Println("Initializing Telegram bot...")
 	tgBot, err := telegram.New(cfg, database)
 	if err != nil {
 		log.Fatalf("Failed to initialize telegram bot: %v\n", err)
 	}
+
+	// Initialize alert sender
+	alertSender := alert.NewSender(database, tgBot, 30*time.Second) // 30 second interval
 
 	// Create context for graceful shutdown
 	ctx, cancel := context.WithCancel(context.Background())
@@ -137,6 +178,11 @@ func runMonitor() {
 
 	fmt.Printf("Starting metrics collection loop (Interval: %ds)...\n", cfg.PollInterval)
 	fmt.Println("Press Ctrl+C to stop")
+	fmt.Println("Detection engine enabled with database-stored alerts")
+	fmt.Println("Alert sender started with 30s interval")
+
+	// Start alert sender in separate goroutine
+	go alertSender.Start(ctx)
 
 	// Setup graceful shutdown
 	sigChan := make(chan os.Signal, 1)
@@ -157,6 +203,11 @@ func runMonitor() {
 			if err := database.SaveMetricSample(sample); err != nil {
 				log.Printf("DB Save Error: %v\n", err)
 				return
+			}
+
+			// Run detection evaluation
+			if err := detector.EvaluateDetections(); err != nil {
+				log.Printf("Detection Error: %v\n", err)
 			}
 
 			// Update last metric time in bot

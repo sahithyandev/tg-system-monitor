@@ -100,6 +100,20 @@ func (db *DB) migrate() error {
 			load15 REAL,
 			uptime REAL
 		);`,
+		`CREATE TABLE IF NOT EXISTS alerts (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			alert_type TEXT NOT NULL,
+			severity TEXT NOT NULL,
+			value REAL NOT NULL,
+			threshold REAL NOT NULL,
+			message TEXT NOT NULL,
+			transition TEXT NOT NULL,
+			timestamp_unix INTEGER NOT NULL,
+			sent_at_unix INTEGER,
+			created_at TEXT DEFAULT CURRENT_TIMESTAMP
+		);`,
+		`CREATE INDEX IF NOT EXISTS idx_alerts_unsent ON alerts(sent_at_unix) WHERE sent_at_unix IS NULL;`,
+		`CREATE INDEX IF NOT EXISTS idx_alerts_timestamp ON alerts(timestamp_unix DESC);`,
 		`CREATE INDEX IF NOT EXISTS idx_alert_state_active ON alert_state(is_active);`,
 		`CREATE INDEX IF NOT EXISTS idx_alert_state_last_triggered ON alert_state(last_triggered_unix);`,
 		`CREATE INDEX IF NOT EXISTS idx_metric_samples_ts ON metric_samples(ts_unix DESC);`,
@@ -391,4 +405,75 @@ func (db *DB) GetLatestMetric() (*metrics.MetricSample, error) {
 
 	s.Timestamp = time.Unix(tsUnix, 0)
 	return &s, nil
+}
+
+// Alert transition methods
+
+type Alert struct {
+	ID         int64
+	AlertType  string
+	Severity   string
+	Value      float64
+	Threshold  float64
+	Message    string
+	Transition string
+	Timestamp  time.Time
+	SentAt     *time.Time
+	CreatedAt  time.Time
+}
+
+func (db *DB) StoreAlert(alertType, severity string, value, threshold float64, message, transition string, timestamp time.Time) error {
+	_, err := db.conn.Exec(`
+		INSERT INTO alerts (alert_type, severity, value, threshold, message, transition, timestamp_unix)
+		VALUES (?, ?, ?, ?, ?, ?, ?)
+	`, alertType, severity, value, threshold, message, transition, timestamp.Unix())
+	return err
+}
+
+func (db *DB) GetUnsentAlerts(limit int) ([]Alert, error) {
+	query := `
+		SELECT id, alert_type, severity, value, threshold, message, transition, timestamp_unix, sent_at_unix, created_at
+		FROM alerts 
+		WHERE sent_at_unix IS NULL 
+		ORDER BY timestamp_unix ASC
+	`
+	if limit > 0 {
+		query += fmt.Sprintf(" LIMIT %d", limit)
+	}
+
+	rows, err := db.conn.Query(query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var alerts []Alert
+	for rows.Next() {
+		var a Alert
+		var tsUnix, sentAtUnix int64
+		var createdAt string
+		err := rows.Scan(&a.ID, &a.AlertType, &a.Severity, &a.Value, &a.Threshold, &a.Message, &a.Transition, &tsUnix, &sentAtUnix, &createdAt)
+		if err != nil {
+			return nil, err
+		}
+
+		a.Timestamp = time.Unix(tsUnix, 0)
+		if sentAtUnix > 0 {
+			sentAt := time.Unix(sentAtUnix, 0)
+			a.SentAt = &sentAt
+		}
+		a.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
+		alerts = append(alerts, a)
+	}
+
+	return alerts, nil
+}
+
+func (db *DB) MarkAlertSent(id int64) error {
+	_, err := db.conn.Exec(`
+		UPDATE alerts 
+		SET sent_at_unix = ? 
+		WHERE id = ?
+	`, time.Now().Unix(), id)
+	return err
 }

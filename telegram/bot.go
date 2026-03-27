@@ -6,12 +6,14 @@ import (
 	"log"
 	"log/slog"
 	"os"
+	"strings"
 	"sync/atomic"
 	"time"
 
 	"tg-system-monitor/auth"
 	"tg-system-monitor/config"
 	"tg-system-monitor/db"
+	"tg-system-monitor/detection"
 
 	"github.com/PaulSonOfLars/gotgbot/v2"
 	"github.com/PaulSonOfLars/gotgbot/v2/ext"
@@ -134,4 +136,48 @@ func (b *Bot) UpdateLastMetricTime(t time.Time) {
 
 func (b *Bot) GetLastMetricTime() time.Time {
 	return b.lastMetricTime.Load().(time.Time)
+}
+
+func (b *Bot) SendAlert(alert detection.Alert, transition string) error {
+	// Get all users who have alerts enabled
+	users, err := b.db.GetAllowedUsers()
+	if err != nil {
+		return fmt.Errorf("failed to get users: %w", err)
+	}
+
+	// Format alert message
+	emoji := "⚠️"
+	if alert.Severity == detection.Critical {
+		emoji = "🚨"
+	}
+
+	message := fmt.Sprintf("%s *%s %s*\n%s",
+		emoji,
+		strings.Title(string(alert.Severity)),
+		strings.ToUpper(string(alert.Type)),
+		alert.Message)
+
+	// Send to all users with alerts enabled
+	var sentCount int
+	var errors []string
+
+	for _, user := range users {
+		if user.AlertsEnabled {
+			_, err := b.bot.SendMessage(user.ID, message, &gotgbot.SendMessageOpts{
+				ParseMode: "markdown",
+			})
+			if err != nil {
+				errors = append(errors, fmt.Sprintf("user %d: %v", user.ID, err))
+			} else {
+				sentCount++
+			}
+		}
+	}
+
+	if sentCount == 0 && len(errors) > 0 {
+		return fmt.Errorf("failed to send alert to any user: %v", errors)
+	}
+
+	log.Printf("Alert sent to %d users: %s", sentCount, alert.Message)
+	return nil
 }
