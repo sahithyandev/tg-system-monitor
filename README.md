@@ -114,6 +114,51 @@ The bot uses a YAML configuration file located at `~/.config/tg-system-monitor/c
 - `alert_cooldown_seconds`: Time between duplicate alerts
 - `hysteresis`: Recovery buffer percentage
 
+## Release Process
+
+This project uses automated releases through GitHub Actions and GoReleaser.
+
+### Automated Releases
+
+Releases are automatically triggered when:
+- A new tag is pushed matching the pattern `v*` (e.g., `v1.0.0`, `v1.2.3`)
+- A manual workflow dispatch is triggered with a specified tag
+
+### Creating a Release
+
+1. Tag-based Release (Recommended)
+   ```sh
+   git tag v1.0.0
+   git push origin v1.0.0
+   ```
+
+2. Manual Release
+   - Go to the Actions tab in GitHub
+   - Select the "Release" workflow
+   - Click "Run workflow"
+   - Optionally specify a tag name
+
+### What Gets Released
+
+The automated release process:
+- Runs all tests to ensure code quality
+- Builds cross-platform binaries using GoReleaser
+- Creates Docker images and pushes to GitHub Container Registry (ghcr.io)
+- Generates a GitHub release with assets
+- Creates checksums for all binaries
+
+### Docker Images
+
+Docker images are automatically built and published to:
+```
+ghcr.io/sahithyandev/tg-system-monitor:latest
+ghcr.io/sahithyandev/tg-system-monitor:v1.0.0
+```
+
+### GoReleaser Configuration
+
+The project uses GoReleaser for consistent cross-platform builds. The configuration is defined in `.goreleaser.yml`.
+
 ## Author
 
 Sahithyan K. (https://sahithyan.dev)
