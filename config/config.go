@@ -8,14 +8,14 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// getDefaultConfig loads the default configuration from config-sample.yml
+// getDefaultConfig loads the default configuration from default-config.yml
 func getDefaultConfig(configDir string) *Config {
-	// Try to find config-sample.yml relative to the working directory
-	defaultConfigPath := "config-sample.yml"
+	// Try to find default-config.yml relative to the working directory
+	defaultConfigPath := "default-config.yml"
 
 	data, err := os.ReadFile(defaultConfigPath)
 	if err != nil {
-		// Fallback to hardcoded defaults if config-sample.yml is not found
+		// Fallback to hardcoded defaults if default-config.yml is not found
 		return &Config{
 			PollInterval:         15,
 			CPUThresholdPercent:  85,
@@ -121,11 +121,82 @@ var GetConfigPath = func() (string, error) {
 	return filepath.Join(appDir, "config.yml"), nil
 }
 
+// mergeConfigs merges user configuration on top of default configuration
+// User config values take priority over default values
+func mergeConfigs(defaultConfig, userConfig *Config) *Config {
+	if userConfig == nil {
+		return defaultConfig
+	}
+
+	merged := *defaultConfig // Copy default config
+
+	// Override with user values if they are set
+	if userConfig.BotToken != "" {
+		merged.BotToken = userConfig.BotToken
+	}
+	if userConfig.JoinPasswordHash != "" {
+		merged.JoinPasswordHash = userConfig.JoinPasswordHash
+	}
+	if userConfig.HostnameOverride != "" {
+		merged.HostnameOverride = userConfig.HostnameOverride
+	}
+	if userConfig.PollInterval != 0 {
+		merged.PollInterval = userConfig.PollInterval
+	}
+	if userConfig.CPUThresholdPercent != 0 {
+		merged.CPUThresholdPercent = userConfig.CPUThresholdPercent
+	}
+	if userConfig.CPURecoveryPercent != 0 {
+		merged.CPURecoveryPercent = userConfig.CPURecoveryPercent
+	}
+	if userConfig.CPUSustainSeconds != 0 {
+		merged.CPUSustainSeconds = userConfig.CPUSustainSeconds
+	}
+	if userConfig.MemThresholdPercent != 0 {
+		merged.MemThresholdPercent = userConfig.MemThresholdPercent
+	}
+	if userConfig.MemRecoveryPercent != 0 {
+		merged.MemRecoveryPercent = userConfig.MemRecoveryPercent
+	}
+	if userConfig.MemSustainSeconds != 0 {
+		merged.MemSustainSeconds = userConfig.MemSustainSeconds
+	}
+	if userConfig.SwapThresholdPercent != 0 {
+		merged.SwapThresholdPercent = userConfig.SwapThresholdPercent
+	}
+	if userConfig.SwapRecoveryPercent != 0 {
+		merged.SwapRecoveryPercent = userConfig.SwapRecoveryPercent
+	}
+	if userConfig.SwapSustainSeconds != 0 {
+		merged.SwapSustainSeconds = userConfig.SwapSustainSeconds
+	}
+	if userConfig.DiskThresholdPercent != 0 {
+		merged.DiskThresholdPercent = userConfig.DiskThresholdPercent
+	}
+	if userConfig.DiskRecoveryPercent != 0 {
+		merged.DiskRecoveryPercent = userConfig.DiskRecoveryPercent
+	}
+	if userConfig.AlertCooldownSeconds != 0 {
+		merged.AlertCooldownSeconds = userConfig.AlertCooldownSeconds
+	}
+	if userConfig.TopProcessCount != 0 {
+		merged.TopProcessCount = userConfig.TopProcessCount
+	}
+	if userConfig.DBPath != "" {
+		merged.DBPath = userConfig.DBPath
+	}
+
+	return &merged
+}
+
 func Load() (*Config, error) {
 	configDir, err := GetConfigDir()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user config directory: %w", err)
 	}
+
+	// Always load default config first
+	defaultConfig := getDefaultConfig(configDir)
 
 	path, err := GetConfigPath()
 	if err != nil {
@@ -135,22 +206,25 @@ func Load() (*Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			// Return default config from config-sample.yml if file doesn't exist
-			return getDefaultConfig(configDir), nil
+			// Return default config if user config file doesn't exist
+			return defaultConfig, nil
 		}
 		return nil, fmt.Errorf("failed to read config file: %w", err)
 	}
 
-	var c Config
-	if err := yaml.Unmarshal(data, &c); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
+	var userConfig Config
+	if err := yaml.Unmarshal(data, &userConfig); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal user config: %w", err)
 	}
 
-	if err := c.Validate(); err != nil {
+	// Merge user config with defaults
+	mergedConfig := mergeConfigs(defaultConfig, &userConfig)
+
+	if err := mergedConfig.Validate(); err != nil {
 		return nil, err
 	}
 
-	return &c, nil
+	return mergedConfig, nil
 }
 
 func (c *Config) Save() error {
