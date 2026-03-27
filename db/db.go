@@ -276,9 +276,11 @@ func (db *DB) GetAllowedUsers() ([]User, error) {
 	for rows.Next() {
 		var u User
 		var alertsEnabled int
-		if err := rows.Scan(&u.ID, &alertsEnabled, &u.FirstAuthAt); err != nil {
+		var firstAuthAt string
+		if err := rows.Scan(&u.ID, &alertsEnabled, &firstAuthAt); err != nil {
 			return nil, err
 		}
+		u.FirstAuthAt, _ = time.Parse(time.RFC3339, firstAuthAt)
 		u.AlertsEnabled = alertsEnabled == 1
 		users = append(users, u)
 	}
