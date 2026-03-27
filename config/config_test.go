@@ -267,16 +267,16 @@ func Test_Load_WithMerging(t *testing.T) {
 		{
 			name:             "No user config file",
 			userConfigYAML:   "",
-			wantPollInterval: 15,   // default
-			wantBotToken:     "",   // default from default-config.yml
-			wantCPUThreshold: 85.0, // default
+			wantPollInterval: 15,                    // default
+			wantBotToken:     "YOUR_BOT_TOKEN_HERE", // default from default-config.yml
+			wantCPUThreshold: 85.0,                  // default
 		},
 		{
 			name:             "Empty user config file",
 			userConfigYAML:   "",
-			wantPollInterval: 15,   // default
-			wantBotToken:     "",   // default from default-config.yml
-			wantCPUThreshold: 85.0, // default
+			wantPollInterval: 15,                    // default
+			wantBotToken:     "YOUR_BOT_TOKEN_HERE", // default from default-config.yml
+			wantCPUThreshold: 85.0,                  // default
 		},
 		{
 			name:             "Partial user config",

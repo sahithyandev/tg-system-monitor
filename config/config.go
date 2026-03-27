@@ -1,6 +1,7 @@
 package config
 
 import (
+	_ "embed"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -8,32 +9,12 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// getDefaultConfig loads the default configuration from default-config.yml
-func getDefaultConfig(configDir string) *Config {
-	// Try to find default-config.yml relative to the working directory
-	defaultConfigPath := "default-config.yml"
+var DefaultConfigYAML string
 
-	data, err := os.ReadFile(defaultConfigPath)
-	if err != nil {
-		// Fallback to hardcoded defaults if default-config.yml is not found
-		return &Config{
-			PollInterval:         15,
-			CPUThresholdPercent:  85,
-			CPURecoveryPercent:   70,
-			CPUSustainSeconds:    300,
-			MemThresholdPercent:  90,
-			MemRecoveryPercent:   80,
-			MemSustainSeconds:    180,
-			SwapThresholdPercent: 25,
-			SwapRecoveryPercent:  10,
-			SwapSustainSeconds:   180,
-			DiskThresholdPercent: 95,
-			DiskRecoveryPercent:  90,
-			AlertCooldownSeconds: 1800,
-			TopProcessCount:      5,
-			DBPath:               filepath.Join(configDir, "telemon.db"),
-		}
-	}
+// getDefaultConfig loads the default configuration from embedded default-config.yml
+func getDefaultConfig(configDir string) *Config {
+	// Use embedded default config
+	data := []byte(DefaultConfigYAML)
 
 	var c Config
 	if err := yaml.Unmarshal(data, &c); err != nil {

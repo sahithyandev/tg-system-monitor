@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"context"
+	_ "embed"
 	"fmt"
 	"log"
 	"os"
@@ -19,6 +20,9 @@ import (
 	"time"
 )
 
+//go:embed default-config.yml
+var DefaultConfigYAML string
+
 func main() {
 	// Check for subcommands
 	if len(os.Args) > 1 {
@@ -31,6 +35,8 @@ func main() {
 			return
 		}
 	}
+
+	config.DefaultConfigYAML = DefaultConfigYAML
 
 	// Default behavior: run the monitor
 	runMonitor()
