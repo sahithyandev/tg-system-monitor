@@ -56,7 +56,11 @@ var (
 		return fmt.Sprintf("🔍 *Status Report*\n\n**Component:** %s\n**Status:** %s\n**Details:** %s", component, status, info)
 	}
 
-	AlertTemplate = func(alertType, severity, metric, value string) string {
+	AlertTemplate = func(alertType, severity, metric, value, transition string) string {
+		if transition == "recovered" {
+			return fmt.Sprintf("✅ *%s RECOVERED*\n\n**Metric:** %s\n**Value:** %s", alertType, metric, value)
+		}
+
 		emoji := "⚠️"
 		if severity == "critical" {
 			emoji = "🚨"

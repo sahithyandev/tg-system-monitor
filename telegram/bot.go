@@ -151,6 +151,7 @@ func (b *Bot) SendAlert(alert detection.Alert, transition string) error {
 		string(alert.Severity),
 		strings.ToUpper(string(alert.Type)),
 		fmt.Sprintf("%.2f/%.2f", alert.Value, alert.Threshold),
+		transition,
 	)
 
 	// Send to all users with alerts enabled
