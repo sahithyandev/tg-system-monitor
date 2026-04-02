@@ -37,14 +37,9 @@ upx:
     goarch:
       - amd64
       - arm64
-    compress:
-      - --best
-      - --lzma
-    binaries:
-      - tgsm
 
 archives:
-  - format: binary
+  - formats: [binary]
     name_template: >-
       {{ .ProjectName }}_
       {{- title .Os }}_
@@ -55,9 +50,6 @@ archives:
 
 checksum:
   name_template: 'checksums.txt'
-
-snapshot:
-  name_template: "{{ incpatch .Version }}-next"
 
 changelog:
   sort: asc
