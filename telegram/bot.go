@@ -76,6 +76,9 @@ func New(cfg *config.Config, database *db.DB) (*Bot, error) {
 	dispatcher.AddHandler(handlers.NewCommand("disallow", disallowHandler(b.auth, database)))
 	dispatcher.AddHandler(handlers.NewCommand("alerts", alertsHandler(b.auth, database)))
 
+	// Register help command handler
+	dispatcher.AddHandler(handlers.NewCommand("help", helpHandler()))
+
 	// Register echo handler for all text messages
 	dispatcher.AddHandler(handlers.NewMessage(message.Text, echoHandler))
 

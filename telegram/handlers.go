@@ -129,3 +129,48 @@ func whoamiHandler(database *db.DB) func(b *gotgbot.Bot, ctx *ext.Context) error
 		return nil
 	}
 }
+
+func helpHandler() func(b *gotgbot.Bot, ctx *ext.Context) error {
+	return func(b *gotgbot.Bot, ctx *ext.Context) error {
+		message := ctx.EffectiveMessage
+		if message == nil {
+			return nil
+		}
+
+		fmt.Println(msg.LogCompleted(msg.ComponentBot, fmt.Sprintf("/help command from %s (@%s)", message.From.FirstName, message.From.Username)))
+
+		// Create help response
+		response := `🤖 *Bot Commands Help*
+
+📋 *Public Commands:*
+/ping - Check bot health and database status
+/whoami - Display your profile and authentication status
+/help - Show this help message
+
+🔐 *Authentication Commands:*
+/join <password> - Authenticate with the bot using password
+/leave - Remove yourself from the system
+
+📊 *Authenticated Commands:*
+/status - Show system metrics
+/alerts <on|off> - Toggle alert notifications
+/allow - Verify your authentication status
+/disallow - Confirm authentication status
+
+💡 *Usage Tips:*
+• Use /join with the correct password to get access to restricted commands
+• Type / in chat to see the command menu
+• Use /whoami to check your current authentication status`
+
+		_, err := message.Reply(b, response, &gotgbot.SendMessageOpts{
+			ParseMode: "markdown",
+		})
+		if err != nil {
+			fmt.Println(msg.LogFailed(msg.ComponentBot, "help reply", err.Error()))
+			return err
+		}
+
+		fmt.Println(msg.LogCompleted(msg.ComponentBot, fmt.Sprintf("help reply sent to %s", message.From.FirstName)))
+		return nil
+	}
+}
