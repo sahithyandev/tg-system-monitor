@@ -15,5 +15,3 @@ echo "📦 Binary size:"
 ls -lh tgsm
 
 echo "✅ Build complete!"
-echo "💡 To regenerate defaults after modifying default-config.yml, run:"
-echo "   go run tools/generate_defaults.go"

@@ -66,82 +66,90 @@ func main() {
 func generateDefaultsFile(config Config) {
 	var builder strings.Builder
 
-	builder.WriteString(`package config
+	builder.WriteString("package config\n\n")
+	builder.WriteString("import \"path/filepath\"\n\n")
+	builder.WriteString("// getDefaultConfig returns hardcoded default configuration values\n")
+	builder.WriteString("// This file is auto-generated from default-config.yml\n")
+	builder.WriteString("// DO NOT EDIT MANUALLY - Run \"go run tools/generate_defaults.go\" to regenerate\n")
+	builder.WriteString("func getDefaultConfig(configDir string) *Config {\n")
+	builder.WriteString("\treturn &Config{\n")
+	builder.WriteString("\t\tBotToken:             ")
+	builder.WriteString(fmt.Sprintf("%q,\n", config.BotToken))
 
-import "path/filepath"
+	builder.WriteString("\t\tJoinPasswordHash:     ")
+	builder.WriteString(fmt.Sprintf("%q,\n", config.JoinPasswordHash))
 
-// getDefaultConfig returns hardcoded default configuration values
-// This file is auto-generated from default-config.yml
-// DO NOT EDIT MANUALLY - Run "go run tools/generate_defaults.go" to regenerate
-func getDefaultConfig(configDir string) *Config {
-	return &Config{
-		PollInterval:         `)
+	builder.WriteString("\t\tHostnameOverride:     ")
+	builder.WriteString(fmt.Sprintf("%q,\n", config.HostnameOverride))
+
+	builder.WriteString("\t\tPollInterval:         ")
 	builder.WriteString(fmt.Sprintf("%d,\n", config.PollInterval))
 
-	builder.WriteString(`		CPUThresholdPercent:  `)
+	builder.WriteString("\t\tCPUThresholdPercent:  ")
 	builder.WriteString(fmt.Sprintf("%.1f,\n", config.CPUThresholdPercent))
 
-	builder.WriteString(`		CPURecoveryPercent:   `)
+	builder.WriteString("\t\tCPURecoveryPercent:   ")
 	builder.WriteString(fmt.Sprintf("%.1f,\n", config.CPURecoveryPercent))
 
-	builder.WriteString(`		CPUSustainSeconds:    `)
+	builder.WriteString("\t\tCPUSustainSeconds:    ")
 	builder.WriteString(fmt.Sprintf("%d,\n", config.CPUSustainSeconds))
 
-	builder.WriteString(`		MemThresholdPercent:  `)
+	builder.WriteString("\t\tMemThresholdPercent:  ")
 	builder.WriteString(fmt.Sprintf("%.1f,\n", config.MemThresholdPercent))
 
-	builder.WriteString(`		MemRecoveryPercent:   `)
+	builder.WriteString("\t\tMemRecoveryPercent:   ")
 	builder.WriteString(fmt.Sprintf("%.1f,\n", config.MemRecoveryPercent))
 
-	builder.WriteString(`		MemSustainSeconds:    `)
+	builder.WriteString("\t\tMemSustainSeconds:    ")
 	builder.WriteString(fmt.Sprintf("%d,\n", config.MemSustainSeconds))
 
-	builder.WriteString(`		SwapThresholdPercent: `)
+	builder.WriteString("\t\tSwapThresholdPercent: ")
 	builder.WriteString(fmt.Sprintf("%.1f,\n", config.SwapThresholdPercent))
 
-	builder.WriteString(`		SwapRecoveryPercent:  `)
+	builder.WriteString("\t\tSwapRecoveryPercent:  ")
 	builder.WriteString(fmt.Sprintf("%.1f,\n", config.SwapRecoveryPercent))
 
-	builder.WriteString(`		SwapSustainSeconds:   `)
+	builder.WriteString("\t\tSwapSustainSeconds:   ")
 	builder.WriteString(fmt.Sprintf("%d,\n", config.SwapSustainSeconds))
 
-	builder.WriteString(`		DiskThresholdPercent: `)
+	builder.WriteString("\t\tDiskThresholdPercent: ")
 	builder.WriteString(fmt.Sprintf("%.1f,\n", config.DiskThresholdPercent))
 
-	builder.WriteString(`		DiskRecoveryPercent:  `)
+	builder.WriteString("\t\tDiskRecoveryPercent:  ")
 	builder.WriteString(fmt.Sprintf("%.1f,\n", config.DiskRecoveryPercent))
 
-	builder.WriteString(`		Load1Warning:         `)
+	builder.WriteString("\t\tLoad1Warning:         ")
 	builder.WriteString(fmt.Sprintf("%.1f,\n", config.Load1Warning))
 
-	builder.WriteString(`		Load1Critical:        `)
+	builder.WriteString("\t\tLoad1Critical:        ")
 	builder.WriteString(fmt.Sprintf("%.1f,\n", config.Load1Critical))
 
-	builder.WriteString(`		Load5Warning:         `)
+	builder.WriteString("\t\tLoad5Warning:         ")
 	builder.WriteString(fmt.Sprintf("%.1f,\n", config.Load5Warning))
 
-	builder.WriteString(`		Load5Critical:        `)
+	builder.WriteString("\t\tLoad5Critical:        ")
 	builder.WriteString(fmt.Sprintf("%.1f,\n", config.Load5Critical))
 
-	builder.WriteString(`		Load15Warning:        `)
+	builder.WriteString("\t\tLoad15Warning:        ")
 	builder.WriteString(fmt.Sprintf("%.1f,\n", config.Load15Warning))
 
-	builder.WriteString(`		Load15Critical:       `)
+	builder.WriteString("\t\tLoad15Critical:       ")
 	builder.WriteString(fmt.Sprintf("%.1f,\n", config.Load15Critical))
 
-	builder.WriteString(`		Hysteresis:           `)
+	builder.WriteString("\t\tHysteresis:           ")
 	builder.WriteString(fmt.Sprintf("%.1f,\n", config.Hysteresis))
 
-	builder.WriteString(`		AlertCooldownSeconds: `)
+	builder.WriteString("\t\tAlertCooldownSeconds: ")
 	builder.WriteString(fmt.Sprintf("%d,\n", config.AlertCooldownSeconds))
 
-	builder.WriteString(`		TopProcessCount:      `)
+	builder.WriteString("\t\tTopProcessCount:      ")
 	builder.WriteString(fmt.Sprintf("%d,\n", config.TopProcessCount))
 
-	builder.WriteString(`		DBPath:               filepath.Join(configDir, "tgsm.db"),
-	}
-}
-`)
+	builder.WriteString("\t\tDBPath:               ")
+	builder.WriteString("filepath.Join(configDir, \"tgsm.db\"),\n")
+
+	builder.WriteString("\t}\n")
+	builder.WriteString("}\n")
 
 	// Write to defaults.go
 	err := os.MkdirAll("config", 0755)
