@@ -50,10 +50,35 @@ func (s *Sender) Start(ctx context.Context) {
 }
 
 func (s *Sender) processAlerts() {
-	// Get unsent alerts
-	transitions, err := s.db.GetUnsentAlerts(s.batchSize)
-	if err != nil {
+	// Get unsent alerts with retry logic
+	var transitions []db.Alert
+	var err error
+
+	// Retry getting alerts with exponential backoff
+	for attempt := 0; attempt < 3; attempt++ {
+		if attempt > 0 {
+			delay := time.Duration(100*attempt) * time.Millisecond
+			time.Sleep(delay)
+		}
+
+		transitions, err = s.db.GetUnsentAlerts(s.batchSize)
+		if err == nil {
+			break
+		}
+
+		// Check if it's a retryable error
+		if isRetryableSQLError(err) {
+			fmt.Println(msg.LogFailed(msg.ComponentAlert, fmt.Sprintf("getting unsent alerts (attempt %d/3)", attempt+1), err.Error()))
+			continue
+		}
+
+		// Non-retryable error
 		fmt.Println(msg.LogFailed(msg.ComponentAlert, "getting unsent alerts", err.Error()))
+		return
+	}
+
+	if err != nil {
+		fmt.Println(msg.LogFailed(msg.ComponentAlert, "getting unsent alerts after retries", err.Error()))
 		return
 	}
 
@@ -69,11 +94,68 @@ func (s *Sender) processAlerts() {
 			continue
 		}
 
-		// Mark as sent
-		if err := s.db.MarkAlertSent(alert.ID); err != nil {
+		// Mark as sent with retry logic
+		if err := s.markAlertSentWithRetry(alert.ID); err != nil {
 			fmt.Println(msg.LogFailed(msg.ComponentAlert, fmt.Sprintf("marking alert ID %d as sent", alert.ID), err.Error()))
 		}
 	}
+}
+
+// markAlertSentWithRetry marks an alert as sent with retry logic
+func (s *Sender) markAlertSentWithRetry(id int64) error {
+	for attempt := 0; attempt < 3; attempt++ {
+		if attempt > 0 {
+			delay := time.Duration(100*attempt) * time.Millisecond
+			time.Sleep(delay)
+		}
+
+		if err := s.db.MarkAlertSent(id); err == nil {
+			return nil
+		} else if !isRetryableSQLError(err) {
+			return err // Non-retryable error
+		}
+	}
+
+	return fmt.Errorf("failed to mark alert %d as sent after 3 attempts", id)
+}
+
+// isRetryableSQLError checks if a database error is worth retrying
+func isRetryableSQLError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	errStr := err.Error()
+	// SQLite busy errors
+	if contains(errStr, "database is locked") || contains(errStr, "SQLITE_BUSY") {
+		return true
+	}
+
+	// Connection errors
+	if contains(errStr, "connection") && (contains(errStr, "refused") || contains(errStr, "reset")) {
+		return true
+	}
+
+	return false
+}
+
+// contains checks if a string contains a substring
+func contains(s, substr string) bool {
+	return len(s) >= len(substr) &&
+		(s == substr ||
+			len(s) > len(substr) &&
+				(s[:len(substr)] == substr ||
+					s[len(s)-len(substr):] == substr ||
+					containsMiddle(s, substr)))
+}
+
+func containsMiddle(s, substr string) bool {
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *Sender) sendAlert(alert db.Alert) error {

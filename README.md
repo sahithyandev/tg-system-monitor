@@ -20,6 +20,10 @@ The above command will run tests all packages.
 
 ## Setup 
 
+### Database
+
+The bot uses SQLite for data storage, which is automatically configured on first run. The database is stored at `~/.config/tg-system-monitor/tgsm.db` by default. Recent improvements include enhanced concurrent access handling and automatic retry logic for database operations, ensuring reliable performance under high load.
+
 ### Telegram
  
 1. Create a Telegram bot using @BotFather.

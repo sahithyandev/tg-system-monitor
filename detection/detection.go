@@ -108,14 +108,18 @@ func (d *DetectionEngine) EvaluateDetections() error {
 func (d *DetectionEngine) getRecentSamples(windowSecs int) ([]*metrics.MetricSample, error) {
 	cutoff := time.Now().Add(-time.Duration(windowSecs) * time.Second).Unix()
 
-	rows, err := d.db.GetConn().Query(`
+	// Use a more efficient query with LIMIT to avoid loading too much data
+	query := `
 		SELECT ts_unix, cpu_percent, mem_percent, swap_percent, disk_percent, load1, load5, load15, uptime
 		FROM metric_samples 
 		WHERE ts_unix >= ?
-		ORDER BY ts_unix ASC
-	`, cutoff)
+		ORDER BY ts_unix DESC
+		LIMIT 100
+	`
+
+	rows, err := d.db.GetConn().Query(query, cutoff)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to query recent samples: %w", err)
 	}
 	defer rows.Close()
 
@@ -125,10 +129,15 @@ func (d *DetectionEngine) getRecentSamples(windowSecs int) ([]*metrics.MetricSam
 		var tsUnix int64
 		err := rows.Scan(&tsUnix, &s.CPUPercent, &s.MemPercent, &s.SwapPercent, &s.DiskPercent, &s.Load1, &s.Load5, &s.Load15, &s.Uptime)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to scan metric sample: %w", err)
 		}
 		s.Timestamp = time.Unix(tsUnix, 0)
 		samples = append(samples, &s)
+	}
+
+	// Reverse to maintain chronological order
+	for i, j := 0, len(samples)-1; i < j; i, j = i+1, j-1 {
+		samples[i], samples[j] = samples[j], samples[i]
 	}
 
 	return samples, nil

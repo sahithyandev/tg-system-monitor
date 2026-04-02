@@ -1,9 +1,11 @@
 package db
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"math"
+	"math/rand/v2"
 	"os"
 	"path/filepath"
 	"time"
@@ -49,8 +51,19 @@ func Init(path string) (*DB, error) {
 		return nil, fmt.Errorf("failed to open database: %w", err)
 	}
 
+	// Configure connection pool for better concurrency
+	conn.SetMaxOpenConns(10)                  // More conservative connection limit
+	conn.SetMaxIdleConns(3)                   // Keep fewer idle connections
+	conn.SetConnMaxLifetime(10 * time.Minute) // Longer connection lifetime
+
 	db := &DB{conn: conn}
-	if err := db.migrate(); err != nil {
+
+	// Configure SQLite for better concurrency
+	if err := db.configureSQLite(); err != nil {
+		return nil, fmt.Errorf("failed to configure sqlite: %w", err)
+	}
+
+	if err := db.Migrate(); err != nil {
 		return nil, fmt.Errorf("failed to migrate database: %w", err)
 	}
 
@@ -61,6 +74,33 @@ func (db *DB) Close() error {
 	return db.conn.Close()
 }
 
+// configureSQLite sets up SQLite for better concurrency
+func (db *DB) configureSQLite() error {
+	configs := []string{
+		// Enable WAL mode for better concurrent read/write performance
+		"PRAGMA journal_mode=WAL;",
+		// Set busy timeout to 60 seconds to handle temporary locks
+		"PRAGMA busy_timeout=60000;",
+		// Enable foreign key constraints
+		"PRAGMA foreign_keys=ON;",
+		// Optimize for better performance
+		"PRAGMA synchronous=NORMAL;",
+		"PRAGMA cache_size=10000;",
+		"PRAGMA temp_store=MEMORY;",
+		// Additional concurrency improvements
+		"PRAGMA wal_autocheckpoint=1000;",
+		"PRAGMA locking_mode=NORMAL;",
+	}
+
+	for _, config := range configs {
+		if _, err := db.conn.Exec(config); err != nil {
+			return fmt.Errorf("failed to execute %q: %w", config, err)
+		}
+	}
+
+	return nil
+}
+
 func (db *DB) GetConn() *sql.DB {
 	return db.conn
 }
@@ -69,7 +109,87 @@ func (db *DB) Ping() error {
 	return db.conn.Ping()
 }
 
-func (db *DB) migrate() error {
+// executeWithRetry executes a database operation with retry logic for transient errors
+func (db *DB) executeWithRetry(ctx context.Context, fn func() error) error {
+	const maxRetries = 10
+	const baseDelay = 50 * time.Millisecond
+
+	var lastErr error
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		if attempt > 0 {
+			// Exponential backoff with jitter
+			delay := baseDelay * time.Duration(1<<uint(attempt-1))
+			if delay > 5*time.Second {
+				delay = 5 * time.Second
+			}
+			// Add jitter to avoid thundering herd
+			jitter := time.Duration(float64(delay) * 0.2 * (2.0*rand.Float64() - 1.0))
+			delay += jitter
+
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(delay):
+			}
+		}
+
+		if err := fn(); err != nil {
+			lastErr = err
+
+			// Check if this is a retryable error
+			if isRetryableError(err) {
+				continue // Retry
+			}
+
+			return err // Non-retryable error, return immediately
+		}
+
+		return nil // Success
+	}
+
+	return fmt.Errorf("operation failed after %d attempts, last error: %w", maxRetries, lastErr)
+}
+
+// isRetryableError checks if an error is worth retrying
+func isRetryableError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	errStr := err.Error()
+	// SQLite busy errors
+	if contains(errStr, "database is locked") || contains(errStr, "SQLITE_BUSY") {
+		return true
+	}
+
+	// Connection errors
+	if contains(errStr, "connection") && contains(errStr, "refused") {
+		return true
+	}
+
+	return false
+}
+
+// contains checks if a string contains a substring (case-insensitive)
+func contains(s, substr string) bool {
+	return len(s) >= len(substr) &&
+		(s == substr ||
+			len(s) > len(substr) &&
+				(s[:len(substr)] == substr ||
+					s[len(s)-len(substr):] == substr ||
+					containsMiddle(s, substr)))
+}
+
+func containsMiddle(s, substr string) bool {
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
+			return true
+		}
+	}
+	return false
+}
+
+func (db *DB) Migrate() error {
 	queries := []string{
 		`CREATE TABLE IF NOT EXISTS users (
 			telegram_user_id INTEGER PRIMARY KEY,
@@ -321,20 +441,22 @@ func (db *DB) GetAlertState(key string) (*AlertState, error) {
 }
 
 func (db *DB) UpdateAlertState(s *AlertState) error {
-	isActive := 0
-	if s.IsActive {
-		isActive = 1
-	}
-	_, err := db.conn.Exec(`
-		INSERT INTO alert_state (alert_key, is_active, active_since_unix, last_triggered_unix, last_recovered_unix)
-		VALUES (?, ?, ?, ?, ?)
-		ON CONFLICT(alert_key) DO UPDATE SET
-			is_active = excluded.is_active,
-			active_since_unix = excluded.active_since_unix,
-			last_triggered_unix = excluded.last_triggered_unix,
-			last_recovered_unix = excluded.last_recovered_unix`,
-		s.Key, isActive, s.ActiveSinceUnix, s.LastTriggeredUnix, s.LastRecoveredUnix)
-	return err
+	return db.executeWithRetry(context.Background(), func() error {
+		isActive := 0
+		if s.IsActive {
+			isActive = 1
+		}
+		_, err := db.conn.Exec(`
+			INSERT INTO alert_state (alert_key, is_active, active_since_unix, last_triggered_unix, last_recovered_unix)
+			VALUES (?, ?, ?, ?, ?)
+			ON CONFLICT(alert_key) DO UPDATE SET
+				is_active = excluded.is_active,
+				active_since_unix = excluded.active_since_unix,
+				last_triggered_unix = excluded.last_triggered_unix,
+				last_recovered_unix = excluded.last_recovered_unix`,
+			s.Key, isActive, s.ActiveSinceUnix, s.LastTriggeredUnix, s.LastRecoveredUnix)
+		return err
+	})
 }
 
 // Failed auth methods
@@ -368,21 +490,23 @@ func (db *DB) ResetFailedAuth(userID int64) error {
 // Metric samples methods
 
 func (db *DB) SaveMetricSample(s *metrics.MetricSample) error {
-	// Round values to 2 decimal places
-	cpu := round(s.CPUPercent)
-	mem := round(s.MemPercent)
-	swap := round(s.SwapPercent)
-	disk := round(s.DiskPercent)
-	l1 := round(s.Load1)
-	l5 := round(s.Load5)
-	l15 := round(s.Load15)
-	uptime := round(s.Uptime)
+	return db.executeWithRetry(context.Background(), func() error {
+		// Round values to 2 decimal places
+		cpu := round(s.CPUPercent)
+		mem := round(s.MemPercent)
+		swap := round(s.SwapPercent)
+		disk := round(s.DiskPercent)
+		l1 := round(s.Load1)
+		l5 := round(s.Load5)
+		l15 := round(s.Load15)
+		uptime := round(s.Uptime)
 
-	_, err := db.conn.Exec(`
-		INSERT INTO metric_samples (ts_unix, cpu_percent, mem_percent, swap_percent, disk_percent, load1, load5, load15, uptime)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		s.Timestamp.Unix(), cpu, mem, swap, disk, l1, l5, l15, uptime)
-	return err
+		_, err := db.conn.Exec(`
+			INSERT INTO metric_samples (ts_unix, cpu_percent, mem_percent, swap_percent, disk_percent, load1, load5, load15, uptime)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			s.Timestamp.Unix(), cpu, mem, swap, disk, l1, l5, l15, uptime)
+		return err
+	})
 }
 
 func round(val float64) float64 {
@@ -433,11 +557,13 @@ type Alert struct {
 }
 
 func (db *DB) StoreAlert(alertType, severity string, value, threshold float64, message, transition string, timestamp time.Time) error {
-	_, err := db.conn.Exec(`
-		INSERT INTO alerts (alert_type, severity, value, threshold, message, transition, timestamp_unix)
-		VALUES (?, ?, ?, ?, ?, ?, ?)
-	`, alertType, severity, value, threshold, message, transition, timestamp.Unix())
-	return err
+	return db.executeWithRetry(context.Background(), func() error {
+		_, err := db.conn.Exec(`
+			INSERT INTO alerts (alert_type, severity, value, threshold, message, transition, timestamp_unix)
+			VALUES (?, ?, ?, ?, ?, ?, ?)
+		`, alertType, severity, value, threshold, message, transition, timestamp.Unix())
+		return err
+	})
 }
 
 func (db *DB) GetUnsentAlerts(limit int) ([]Alert, error) {
@@ -481,10 +607,12 @@ func (db *DB) GetUnsentAlerts(limit int) ([]Alert, error) {
 }
 
 func (db *DB) MarkAlertSent(id int64) error {
-	_, err := db.conn.Exec(`
-		UPDATE alerts 
-		SET sent_at_unix = ? 
-		WHERE id = ?
-	`, time.Now().Unix(), id)
-	return err
+	return db.executeWithRetry(context.Background(), func() error {
+		_, err := db.conn.Exec(`
+			UPDATE alerts 
+			SET sent_at_unix = ? 
+			WHERE id = ?
+		`, time.Now().Unix(), id)
+		return err
+	})
 }
