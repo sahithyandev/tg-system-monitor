@@ -9,67 +9,7 @@ import (
 )
 
 func init() {
-	// Load default config from the default-config.yml file
-	configPath := filepath.Join("..", "default-config.yml")
-	data, err := os.ReadFile(configPath)
-	if err != nil {
-		// Fallback to hardcoded defaults if file can't be read
-		DefaultConfigYAML = `# Copy this file to ~/.config/tg-system-monitor/config.yml
-# Replace YOUR_BOT_TOKEN with your actual Telegram bot token
-
-# Required: Get from @BotFather on Telegram
-bot_token: "YOUR_BOT_TOKEN_HERE"
-
-# Optional: Hash of password for users to join the bot
-# DO NOT EDIT MANUALLY. USE ` + "`set-password`" + ` TO DO SO. 
-join_password_hash: ""
-
-# Optional: Override hostname detection
-hostname_override: ""
-
-# Optional: How often to poll for system metrics (seconds)
-poll_interval_seconds: 15
-
-# CPU monitoring thresholds
-cpu_threshold_percent: 85.0
-cpu_recovery_percent: 70.0
-cpu_sustain_seconds: 300
-
-# Memory monitoring thresholds  
-mem_threshold_percent: 90.0
-mem_recovery_percent: 80.0
-mem_sustain_seconds: 180
-
-# Swap monitoring thresholds
-swap_threshold_percent: 25.0
-swap_recovery_percent: 10.0
-swap_sustain_seconds: 180
-
-# Disk monitoring thresholds
-disk_threshold_percent: 95.0
-disk_recovery_percent: 90.0
-
-# Load monitoring thresholds
-load1_warning: 2.0
-load1_critical: 4.0
-load5_warning: 1.5
-load5_critical: 3.0
-load15_warning: 1.0
-load15_critical: 2.0
-
-# Detection hysteresis to prevent flapping (percent)
-hysteresis: 5.0
-
-# Alert settings
-alert_cooldown_seconds: 1800
-top_process_count: 5
-
-# Database path
-db_path: "~/.config/tg-system-monitor/tgsm.db"
-`
-		return
-	}
-	DefaultConfigYAML = string(data)
+	// Tests will use the filesystem-based config loading
 }
 
 func TestConfig_Validate(t *testing.T) {
