@@ -8,13 +8,38 @@ builds:
       - amd64
       - arm64
     binary: tgsm
+    flags:
+      - -trimpath
+      - -buildmode=pie
+    gcflags:
+      - -l
+      - -B
+      - -C
     ldflags:
       - -s -w
+      - -extldflags=-static
       - -X main.version={{.Version}}
       - -X main.commit={{.Commit}}
       - -X main.date={{.Date}}
       - -X main.builtBy=goreleaser
+    hooks:
+      pre:
+        - go run tools/generate_defaults.go
 
+# UPX compression configuration
+upx:
+  - enabled: true
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    compress:
+      - --best
+      - --lzma
+    binaries:
+      - tgsm
 
 archives:
   - format: binary
