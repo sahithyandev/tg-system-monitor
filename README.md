@@ -151,14 +151,6 @@ The automated release process:
 - Generates a GitHub release with assets
 - Creates checksums for all binaries
 
-### Docker Images
-
-Docker images are automatically built and published to:
-```
-ghcr.io/sahithyandev/tg-system-monitor:latest
-ghcr.io/sahithyandev/tg-system-monitor:v1.0.0
-```
-
 ### GoReleaser Configuration
 
 The project uses GoReleaser for consistent cross-platform builds. The configuration is defined in `.goreleaser.yml`.
