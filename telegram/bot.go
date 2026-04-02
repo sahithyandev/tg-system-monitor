@@ -60,6 +60,11 @@ func New(cfg *config.Config, database *db.DB) (*Bot, error) {
 	}
 	b.lastMetricTime.Store(time.Time{}) // Initialize with zero time
 
+	// Set bot commands menu
+	if err := b.setBotCommands(); err != nil {
+		fmt.Println(msg.LogFailed(msg.ComponentBot, "set commands", err.Error()))
+	}
+
 	// Register ping command handler
 	dispatcher.AddHandler(handlers.NewCommand("ping", pingHandler(database, b.GetLastMetricTime)))
 
@@ -182,5 +187,32 @@ func (b *Bot) SendAlert(alert detection.Alert, transition string) error {
 	}
 
 	fmt.Println(msg.LogCompleted(msg.ComponentBot, fmt.Sprintf("alert sent to %d users", sentCount)))
+	return nil
+}
+
+// setBotCommands sets the bot's command menu using Telegram's SetMyCommands API
+func (b *Bot) setBotCommands() error {
+	commands := []gotgbot.BotCommand{
+		{Command: "ping", Description: "Check bot health and database status"},
+		{Command: "whoami", Description: "Display your profile and authentication status"},
+		{Command: "help", Description: "Show all available commands"},
+		{Command: "join", Description: "Authenticate with the bot using password"},
+		{Command: "status", Description: "Show system metrics (requires authentication)"},
+		{Command: "alerts", Description: "Toggle alert notifications (on/off)"},
+		{Command: "leave", Description: "Remove yourself from the system"},
+		{Command: "allow", Description: "Verify your authentication status"},
+		{Command: "disallow", Description: "Confirm authentication status"},
+	}
+
+	_, err := b.bot.SetMyCommands(commands, &gotgbot.SetMyCommandsOpts{
+		Scope:        &gotgbot.BotCommandScopeDefault{},
+		LanguageCode: "",
+	})
+
+	if err != nil {
+		return fmt.Errorf("failed to set bot commands: %w", err)
+	}
+
+	fmt.Println(msg.LogCompleted(msg.ComponentBot, "bot commands menu set"))
 	return nil
 }
