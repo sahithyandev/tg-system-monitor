@@ -130,7 +130,8 @@ func (c *Config) PrintThresholds() {
 
 func (c *Config) Validate() error {
 	if c.PollInterval < 1 {
-		return fmt.Errorf("poll_interval_seconds must be at least 1")
+		fmt.Fprintln(os.Stderr, "poll_interval_seconds must be at least 1, using default 15s")
+		c.PollInterval = 15
 	}
 	return nil
 }

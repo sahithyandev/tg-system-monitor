@@ -80,8 +80,8 @@ func TestConfig_Validate(t *testing.T) {
 	}{
 		{"Valid interval", Config{PollInterval: 15}, false},
 		{"Minimum valid", Config{PollInterval: 1}, false},
-		{"Zero interval", Config{PollInterval: 0}, true},
-		{"Negative interval", Config{PollInterval: -1}, true},
+		{"Zero interval", Config{PollInterval: 0}, false},
+		{"Negative interval", Config{PollInterval: -1}, false},
 	}
 
 	for _, tt := range tests {
@@ -136,9 +136,12 @@ func TestConfig_LoadSave(t *testing.T) {
 	if err := os.WriteFile(tmpFile, []byte("poll_interval_seconds: -1"), 0644); err != nil {
 		t.Fatal(err)
 	}
-	_, err = Load()
-	if err == nil {
-		t.Error("expected error for invalid config, got nil")
+	config, err := Load()
+	if err != nil {
+		t.Fatalf("expected valid fallback config, got error: %v", err)
+	}
+	if config.PollInterval != 15 {
+		t.Errorf("expected default 15, got %d", config.PollInterval)
 	}
 }
 
@@ -490,9 +493,13 @@ func Test_Load_WithInvalidUserConfig(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err := Load()
-	if err == nil {
-		t.Error("expected error for invalid user config, got nil")
+	config, err := Load()
+	if err != nil {
+		t.Error("expected valid fallback config, got error:", err)
+	}
+
+	if config.PollInterval != 15 {
+		t.Errorf("expected PollInterval = 15, got %v", config.PollInterval)
 	}
 }
 
