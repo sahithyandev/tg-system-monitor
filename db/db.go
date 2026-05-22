@@ -609,10 +609,30 @@ func (db *DB) GetUnsentAlerts(limit int) ([]Alert, error) {
 func (db *DB) MarkAlertSent(id int64) error {
 	return db.executeWithRetry(context.Background(), func() error {
 		_, err := db.conn.Exec(`
-			UPDATE alerts 
-			SET sent_at_unix = ? 
+			UPDATE alerts
+			SET sent_at_unix = ?
 			WHERE id = ?
 		`, time.Now().Unix(), id)
 		return err
 	})
+}
+
+// PurgeOldData deletes metric_samples and alerts older than retentionDays days.
+// Returns the total number of rows deleted.
+func (db *DB) PurgeOldData(retentionDays int) (int64, error) {
+	cutoff := time.Now().AddDate(0, 0, -retentionDays).Unix()
+
+	var total int64
+	for _, query := range []string{
+		`DELETE FROM metric_samples WHERE ts_unix < ?`,
+		`DELETE FROM alerts WHERE timestamp_unix < ?`,
+	} {
+		result, err := db.conn.Exec(query, cutoff)
+		if err != nil {
+			return total, err
+		}
+		n, _ := result.RowsAffected()
+		total += n
+	}
+	return total, nil
 }

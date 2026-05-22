@@ -43,6 +43,7 @@ type Config struct {
 	AlertCooldownSeconds int     `yaml:"alert_cooldown_seconds"`
 	TopProcessCount      int     `yaml:"top_process_count"`
 	DBPath               string  `yaml:"db_path"`
+	DataRetentionDays    int     `yaml:"data_retention_days"`
 }
 
 func main() {
@@ -147,6 +148,9 @@ func generateDefaultsFile(config Config) {
 
 	builder.WriteString("\t\tDBPath:               ")
 	builder.WriteString("filepath.Join(configDir, \"tgsm.db\"),\n")
+
+	builder.WriteString("\t\tDataRetentionDays:    ")
+	builder.WriteString(fmt.Sprintf("%d,\n", config.DataRetentionDays))
 
 	builder.WriteString("\t}\n")
 	builder.WriteString("}\n")

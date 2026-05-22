@@ -50,3 +50,6 @@ top_process_count: 5
 
 # Database path
 db_path: "~/.config/tg-system-monitor/tgsm.db"
+
+# Data retention
+data_retention_days: 30

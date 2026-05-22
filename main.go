@@ -198,6 +198,32 @@ func runMonitor() {
 	// Start alert sender in separate goroutine
 	go alertSender.Start(ctx)
 
+	// Start data retention goroutine
+	go func() {
+		purge := func() {
+			n, err := database.PurgeOldData(cfg.DataRetentionDays)
+			if err != nil {
+				log.Printf("%s", message.LogFailed(message.ComponentDatabase, "data retention purge", err.Error()))
+				return
+			}
+			if n > 0 {
+				log.Printf("%s", message.LogCompleted(message.ComponentDatabase, fmt.Sprintf("purged %d old rows (retention: %d days)", n, cfg.DataRetentionDays)))
+			}
+		}
+
+		purge()
+		ticker := time.NewTicker(24 * time.Hour)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				purge()
+			}
+		}
+	}()
+
 	// Setup graceful shutdown
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)

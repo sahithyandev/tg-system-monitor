@@ -65,6 +65,7 @@ type Config struct {
 	AlertCooldownSeconds int    `yaml:"alert_cooldown_seconds"`
 	TopProcessCount      int    `yaml:"top_process_count"`
 	DBPath               string `yaml:"db_path"`
+	DataRetentionDays    int    `yaml:"data_retention_days"`
 }
 
 func (c *Config) PrintThresholds() {
@@ -204,6 +205,9 @@ func mergeConfigs(defaultConfig, userConfig *Config) *Config {
 	}
 	if userConfig.DBPath != "" {
 		merged.DBPath = userConfig.DBPath
+	}
+	if userConfig.DataRetentionDays != 0 {
+		merged.DataRetentionDays = userConfig.DataRetentionDays
 	}
 
 	return &merged
