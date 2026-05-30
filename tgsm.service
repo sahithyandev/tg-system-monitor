@@ -18,6 +18,8 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
+StateDirectory=tgsm
+LogsDirectory=tgsm
 ReadWritePaths=/var/lib/tgsm /var/log/tgsm
 
 # Resource limits
