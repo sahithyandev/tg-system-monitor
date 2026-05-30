@@ -2,7 +2,67 @@
 
 A simple and lightweight system monitor that interfaces through Telegram. Written in Go.
 
-## Commands
+## Installation
+
+### Quick Install (Linux — recommended)
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/sahithyandev/tg-system-monitor/main/scripts/install.sh | sudo bash
+```
+
+Detects your architecture and package manager, installs the appropriate `.deb` or `.rpm`
+package, creates the `tgsm` system user, and enables the service on boot.
+
+### Debian / Ubuntu
+
+Download the `.deb` from the [releases page](https://github.com/sahithyandev/tg-system-monitor/releases) and install it:
+
+```sh
+sudo apt install ./tgsm_*_linux_amd64.deb     # x86-64
+sudo apt install ./tgsm_*_linux_arm64.deb     # ARM64
+```
+
+### RHEL / Fedora / CentOS
+
+Download the `.rpm` from the [releases page](https://github.com/sahithyandev/tg-system-monitor/releases):
+
+```sh
+sudo dnf install ./tgsm_*_linux_amd64.rpm     # x86-64
+sudo dnf install ./tgsm_*_linux_arm64.rpm     # ARM64
+```
+
+### Manual (raw binary)
+
+Download the binary for your platform from the [releases page](https://github.com/sahithyandev/tg-system-monitor/releases),
+place it at `/usr/bin/tgsm`, and follow the post-install steps below manually
+(create `tgsm` user, data dir, systemd unit).
+
+### Post-install setup
+
+After installation via any method:
+
+1. **Edit the config** — add your Telegram bot token:
+   ```
+   /var/lib/tgsm/.config/tg-system-monitor/config.yml
+   ```
+   Set `bot_token` to the token you got from [@BotFather](https://t.me/botfather).
+
+2. **Set the join password** (the password users type to authenticate with the bot):
+   ```sh
+   sudo -u tgsm HOME=/var/lib/tgsm tgsm set-password
+   ```
+
+3. **Start the service** (it is enabled on boot but not auto-started, to avoid a crash-loop before the token is configured):
+   ```sh
+   sudo systemctl start tgsm
+   sudo journalctl -u tgsm -f   # tail the logs
+   ```
+
+A Telegram user can then join with `/join <password>` in a private chat with the bot.
+
+---
+
+## Development
 
 ### Build
 
@@ -15,25 +75,6 @@ go build -ldflags="-s -w" -o tgsm main.go
 ```sh
 go test ./...
 ```
-
-The above command will run tests all packages.
-
-## Setup 
-
-### Database
-
-The bot uses SQLite for data storage, which is automatically configured on first run. The database is stored at `~/.config/tg-system-monitor/tgsm.db` by default. Recent improvements include enhanced concurrent access handling and automatic retry logic for database operations, ensuring reliable performance under high load.
-
-### Telegram
- 
-1. Create a Telegram bot using @BotFather.
-2. Copy the bot token (looks like `1234567890:ABCdefGHIjklMNOpqrsTUVwxyz`)
-3. Replace `YOUR_BOT_TOKEN_HERE` with your actual bot token in the config file (located at `~/.config/tg-system-monitor/config.yml`).
-4. Set the password for the bot using `set-password` command.
-
-After that, the bot will connect and run on the bot.
-
-A user can join the bot by using the `/join` command with the password.
 
 ## How the Bot Works
 
@@ -146,10 +187,9 @@ Releases are automatically triggered when:
 
 The automated release process:
 - Runs all tests to ensure code quality
-- Builds cross-platform binaries using GoReleaser
-- Creates Docker images and pushes to GitHub Container Registry (ghcr.io)
-- Generates a GitHub release with assets
-- Creates checksums for all binaries
+- Builds cross-platform binaries using GoReleaser (Linux amd64/arm64, macOS amd64/arm64)
+- Produces `.deb` and `.rpm` packages for Linux
+- Generates a GitHub release with all assets and a `checksums.txt`
 
 ### GoReleaser Configuration
 

@@ -48,6 +48,34 @@ archives:
       {{- else }}{{ .Arch }}{{ end }}
       {{- if .Arm }}v{{ .Arm }}{{ end }}
 
+nfpms:
+  - id: default
+    package_name: tgsm
+    vendor: "Sahithyan K."
+    homepage: https://github.com/sahithyandev/tg-system-monitor
+    maintainer: "Sahithyan K. <sahithyan2701@gmail.com>"
+    description: A lightweight Telegram-based system monitor for Linux servers.
+    license: MIT
+    formats:
+      - deb
+      - rpm
+    bindir: /usr/bin
+    file_name_template: "tgsm_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    contents:
+      - src: tgsm.service
+        dst: /usr/lib/systemd/system/tgsm.service
+        file_info:
+          mode: 0644
+      - src: default-config.yml
+        dst: /usr/share/tgsm/config.yml.example
+        file_info:
+          mode: 0644
+    scripts:
+      preinstall: packaging/preinstall.sh
+      postinstall: packaging/postinstall.sh
+      preremove: packaging/preremove.sh
+      postremove: packaging/postremove.sh
+
 checksum:
   name_template: 'checksums.txt'
 
