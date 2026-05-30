@@ -10,6 +10,11 @@ on:
         description: 'Tag to release (e.g., v0.1.0)'
         required: false
         type: string
+      skip_tests:
+        description: 'Skip running tests'
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -35,6 +40,7 @@ jobs:
         run: go run tools/generate_defaults.go
       
       - name: Run tests
+        if: ${{ !inputs.skip_tests && !contains(github.event.head_commit.message, '[skip tests]') }}
         run: go test -v ./...
       
       - name: Run GoReleaser
