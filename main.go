@@ -128,7 +128,11 @@ func runMonitor() {
 		log.Fatal(message.BotTokenRequired)
 	}
 
-	collector := metrics.NewCollector()
+	var volumePaths []string
+	for _, v := range cfg.Volumes {
+		volumePaths = append(volumePaths, v.Path)
+	}
+	collector := metrics.NewCollector(volumePaths)
 
 	fmt.Printf("%s\n", message.LogStarted(message.ComponentDatabase, cfg.DBPath))
 	database, err := db.Init(cfg.DBPath)
@@ -170,6 +174,23 @@ func runMonitor() {
 		WindowSecs:   cfg.CPUSustainSeconds, // Use CPU sustain seconds as window
 		CooldownSecs: cfg.AlertCooldownSeconds,
 		Hysteresis:   cfg.Hysteresis,
+	}
+	for _, v := range cfg.Volumes {
+		threshold := v.ThresholdPercent
+		if threshold == 0 {
+			threshold = cfg.DiskThresholdPercent
+		}
+		recovery := v.RecoveryPercent
+		if recovery == 0 {
+			recovery = cfg.DiskRecoveryPercent
+		}
+		detectionConfig.Volumes = append(detectionConfig.Volumes, detection.VolumeThreshold{
+			Path: v.Path,
+			Threshold: detection.Threshold{
+				Warning:  recovery,
+				Critical: threshold,
+			},
+		})
 	}
 	detector := detection.NewDetectionEngine(database, detectionConfig)
 

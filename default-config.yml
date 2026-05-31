@@ -53,3 +53,12 @@ db_path: "~/.config/tg-system-monitor/tgsm.db"
 
 # Data retention
 data_retention_days: 30
+
+# Additional data volumes to monitor (mounted data disks, databases, etc).
+# Each volume is shown in /status and raises Telegram alerts when above threshold.
+# threshold_percent and recovery_percent default to disk_threshold_percent /
+# disk_recovery_percent above if omitted.
+# volumes:
+#   - path: /data
+#     threshold_percent: 95.0
+#     recovery_percent: 90.0

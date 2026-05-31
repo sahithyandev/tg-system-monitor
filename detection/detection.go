@@ -55,6 +55,11 @@ type Threshold struct {
 	Critical float64
 }
 
+type VolumeThreshold struct {
+	Path      string
+	Threshold Threshold
+}
+
 type DetectionConfig struct {
 	CPU          Threshold
 	Memory       Threshold
@@ -63,6 +68,7 @@ type DetectionConfig struct {
 	Load1        Threshold
 	Load5        Threshold
 	Load15       Threshold
+	Volumes      []VolumeThreshold
 	WindowSecs   int
 	CooldownSecs int
 	Hysteresis   float64
@@ -98,6 +104,11 @@ func (d *DetectionEngine) EvaluateDetections() error {
 	d.evaluateThresholdAlert(Load1, samples, d.config.Load1, func(s *metrics.MetricSample) float64 { return s.Load1 })
 	d.evaluateThresholdAlert(Load5, samples, d.config.Load5, func(s *metrics.MetricSample) float64 { return s.Load5 })
 	d.evaluateThresholdAlert(Load15, samples, d.config.Load15, func(s *metrics.MetricSample) float64 { return s.Load15 })
+
+	// Per-volume threshold alerts
+	for _, v := range d.config.Volumes {
+		d.evaluateVolumeAlert(v.Path, v.Threshold)
+	}
 
 	// Derived alerts
 	d.evaluateDerivedAlerts(samples)
@@ -143,10 +154,7 @@ func (d *DetectionEngine) getRecentSamples(windowSecs int) ([]*metrics.MetricSam
 	return samples, nil
 }
 
-func (d *DetectionEngine) evaluateThresholdAlert(alertType AlertType, samples []*metrics.MetricSample, threshold Threshold, getValue func(*metrics.MetricSample) float64) {
-	latest := samples[len(samples)-1]
-	value := getValue(latest)
-
+func (d *DetectionEngine) evaluateValue(alertType AlertType, value float64, threshold Threshold) {
 	warningKey := fmt.Sprintf("%s_warning", string(alertType))
 	criticalKey := fmt.Sprintf("%s_critical", string(alertType))
 
@@ -162,6 +170,23 @@ func (d *DetectionEngine) evaluateThresholdAlert(alertType AlertType, samples []
 		d.checkAndStoreRecovery(warningKey, alertType, Warning, value, threshold.Warning, now)
 		d.checkAndStoreRecovery(criticalKey, alertType, Critical, value, threshold.Critical, now)
 	}
+}
+
+func (d *DetectionEngine) evaluateThresholdAlert(alertType AlertType, samples []*metrics.MetricSample, threshold Threshold, getValue func(*metrics.MetricSample) float64) {
+	latest := samples[len(samples)-1]
+	d.evaluateValue(alertType, getValue(latest), threshold)
+}
+
+func (d *DetectionEngine) evaluateVolumeAlert(path string, threshold Threshold) {
+	pct, ok, err := d.db.GetLatestVolumePercent(path)
+	if err != nil {
+		log.Printf("Error getting latest volume percent for %s: %v", path, err)
+		return
+	}
+	if !ok {
+		return
+	}
+	d.evaluateValue(AlertType("disk "+path), pct, threshold)
 }
 
 func (d *DetectionEngine) checkAndStoreAlert(key string, alertType AlertType, severity Severity, value, threshold float64, now int64) {

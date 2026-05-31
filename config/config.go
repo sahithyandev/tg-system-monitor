@@ -33,6 +33,12 @@ func expandPath(path string) string {
 	return path
 }
 
+type VolumeConfig struct {
+	Path             string  `yaml:"path"`
+	ThresholdPercent float64 `yaml:"threshold_percent"`
+	RecoveryPercent  float64 `yaml:"recovery_percent"`
+}
+
 type Config struct {
 	BotToken         string `yaml:"bot_token"`
 	JoinPasswordHash string `yaml:"join_password_hash"`
@@ -64,8 +70,9 @@ type Config struct {
 
 	AlertCooldownSeconds int    `yaml:"alert_cooldown_seconds"`
 	TopProcessCount      int    `yaml:"top_process_count"`
-	DBPath               string `yaml:"db_path"`
-	DataRetentionDays    int    `yaml:"data_retention_days"`
+	DBPath               string         `yaml:"db_path"`
+	DataRetentionDays    int            `yaml:"data_retention_days"`
+	Volumes              []VolumeConfig `yaml:"volumes"`
 }
 
 func (c *Config) PrintThresholds() {
@@ -87,6 +94,20 @@ func (c *Config) PrintThresholds() {
 	fmt.Printf("Load15  | Warning: %.1f | Critical: %.1f\n",
 		c.Load15Warning, c.Load15Critical)
 	fmt.Printf("Hysteresis: %.1f%%\n", c.Hysteresis)
+	if len(c.Volumes) > 0 {
+		fmt.Println("Additional volumes:")
+		for _, v := range c.Volumes {
+			threshold := v.ThresholdPercent
+			if threshold == 0 {
+				threshold = c.DiskThresholdPercent
+			}
+			recovery := v.RecoveryPercent
+			if recovery == 0 {
+				recovery = c.DiskRecoveryPercent
+			}
+			fmt.Printf("  %-20s | Warning: %.1f%% | Critical: %.1f%%\n", v.Path, recovery, threshold)
+		}
+	}
 	fmt.Println()
 }
 
@@ -208,6 +229,9 @@ func mergeConfigs(defaultConfig, userConfig *Config) *Config {
 	}
 	if userConfig.DataRetentionDays != 0 {
 		merged.DataRetentionDays = userConfig.DataRetentionDays
+	}
+	if len(userConfig.Volumes) > 0 {
+		merged.Volumes = userConfig.Volumes
 	}
 
 	return &merged

@@ -228,6 +228,13 @@ func (db *DB) Migrate() error {
 			load15 REAL,
 			uptime REAL
 		);`,
+		`CREATE TABLE IF NOT EXISTS volume_samples (
+			ts_unix INTEGER NOT NULL,
+			mount_path TEXT NOT NULL,
+			disk_percent REAL
+		);`,
+		`CREATE INDEX IF NOT EXISTS idx_volume_samples_path_ts
+			ON volume_samples(mount_path, ts_unix DESC);`,
 		`CREATE TABLE IF NOT EXISTS alerts (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			alert_type TEXT NOT NULL,
@@ -505,7 +512,20 @@ func (db *DB) SaveMetricSample(s *metrics.MetricSample) error {
 			INSERT INTO metric_samples (ts_unix, cpu_percent, mem_percent, swap_percent, disk_percent, load1, load5, load15, uptime)
 			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			s.Timestamp.Unix(), cpu, mem, swap, disk, l1, l5, l15, uptime)
-		return err
+		if err != nil {
+			return err
+		}
+
+		for _, v := range s.Volumes {
+			_, err = db.conn.Exec(`
+				INSERT INTO volume_samples (ts_unix, mount_path, disk_percent)
+				VALUES (?, ?, ?)`,
+				s.Timestamp.Unix(), v.Path, round(v.Percent))
+			if err != nil {
+				return fmt.Errorf("failed to save volume sample for %s: %w", v.Path, err)
+			}
+		}
+		return nil
 	})
 }
 
@@ -538,7 +558,41 @@ func (db *DB) GetLatestMetric() (*metrics.MetricSample, error) {
 	}
 
 	s.Timestamp = time.Unix(tsUnix, 0)
+
+	// Load volume samples for the same timestamp
+	rows, err := db.conn.Query(`
+		SELECT mount_path, disk_percent FROM volume_samples
+		WHERE ts_unix = ?
+		ORDER BY mount_path`, tsUnix)
+	if err == nil {
+		defer rows.Close()
+		for rows.Next() {
+			var v metrics.VolumeSample
+			if scanErr := rows.Scan(&v.Path, &v.Percent); scanErr == nil {
+				s.Volumes = append(s.Volumes, v)
+			}
+		}
+	}
+
 	return &s, nil
+}
+
+// GetLatestVolumePercent returns the most recently recorded disk percent for
+// the given mount path, plus a boolean indicating whether a row was found.
+func (db *DB) GetLatestVolumePercent(path string) (float64, bool, error) {
+	var pct float64
+	err := db.conn.QueryRow(`
+		SELECT disk_percent FROM volume_samples
+		WHERE mount_path = ?
+		ORDER BY ts_unix DESC
+		LIMIT 1`, path).Scan(&pct)
+	if err == sql.ErrNoRows {
+		return 0, false, nil
+	}
+	if err != nil {
+		return 0, false, err
+	}
+	return pct, true, nil
 }
 
 // Alert transition methods
@@ -625,6 +679,7 @@ func (db *DB) PurgeOldData(retentionDays int) (int64, error) {
 	var total int64
 	for _, query := range []string{
 		`DELETE FROM metric_samples WHERE ts_unix < ?`,
+		`DELETE FROM volume_samples WHERE ts_unix < ?`,
 		`DELETE FROM alerts WHERE timestamp_unix < ?`,
 	} {
 		result, err := db.conn.Exec(query, cutoff)

@@ -2,6 +2,11 @@ package metrics
 
 import "time"
 
+type VolumeSample struct {
+	Path    string
+	Percent float64
+}
+
 type MetricSample struct {
 	Timestamp   time.Time
 	CPUPercent  float64
@@ -12,6 +17,7 @@ type MetricSample struct {
 	Load5       float64
 	Load15      float64
 	Uptime      float64
+	Volumes     []VolumeSample
 }
 
 type Process struct {

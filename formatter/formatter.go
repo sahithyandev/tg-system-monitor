@@ -45,6 +45,9 @@ func FormatStatus(sample *metrics.MetricSample) string {
 	sb.WriteString(fmt.Sprintf("Memory: %.1f%%\n", sample.MemPercent))
 	sb.WriteString(fmt.Sprintf("Swap: %.1f%%\n", sample.SwapPercent))
 	sb.WriteString(fmt.Sprintf("Disk /: %.1f%%\n", sample.DiskPercent))
+	for _, v := range sample.Volumes {
+		sb.WriteString(fmt.Sprintf("Disk %s: %.1f%%\n", v.Path, v.Percent))
+	}
 	sb.WriteString(fmt.Sprintf("Load avg: %.2f %.2f %.2f\n\n", sample.Load1, sample.Load5, sample.Load15))
 
 	sb.WriteString("Active alerts: none\n") // Placeholder for now

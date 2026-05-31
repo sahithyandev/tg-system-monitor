@@ -10,6 +10,13 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// VolumeConfig represents a single monitored volume
+type VolumeConfig struct {
+	Path             string  `yaml:"path"`
+	ThresholdPercent float64 `yaml:"threshold_percent"`
+	RecoveryPercent  float64 `yaml:"recovery_percent"`
+}
+
 // Config represents the configuration structure
 type Config struct {
 	BotToken         string `yaml:"bot_token"`
@@ -42,8 +49,9 @@ type Config struct {
 	Hysteresis           float64 `yaml:"hysteresis"`
 	AlertCooldownSeconds int     `yaml:"alert_cooldown_seconds"`
 	TopProcessCount      int     `yaml:"top_process_count"`
-	DBPath               string  `yaml:"db_path"`
-	DataRetentionDays    int     `yaml:"data_retention_days"`
+	DBPath               string         `yaml:"db_path"`
+	DataRetentionDays    int            `yaml:"data_retention_days"`
+	Volumes              []VolumeConfig `yaml:"volumes"`
 }
 
 func main() {

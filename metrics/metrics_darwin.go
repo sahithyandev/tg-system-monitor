@@ -6,6 +6,7 @@ package metrics
 import (
 	"bytes"
 	"fmt"
+	"log"
 	"os/exec"
 	"sort"
 	"strconv"
@@ -14,10 +15,12 @@ import (
 	"time"
 )
 
-type Collector struct{}
+type Collector struct {
+	volumePaths []string
+}
 
-func NewCollector() *Collector {
-	return &Collector{}
+func NewCollector(volumePaths []string) *Collector {
+	return &Collector{volumePaths: volumePaths}
 }
 
 func (c *Collector) Collect() (*MetricSample, error) {
@@ -55,6 +58,16 @@ func (c *Collector) Collect() (*MetricSample, error) {
 	sample.DiskPercent, err = getDiskUsage("/")
 	if err != nil {
 		return nil, fmt.Errorf("failed to get disk usage: %w", err)
+	}
+
+	// Additional data volumes
+	for _, path := range c.volumePaths {
+		pct, err := getDiskUsage(path)
+		if err != nil {
+			log.Printf("warning: failed to get disk usage for volume %s: %v", path, err)
+			continue
+		}
+		sample.Volumes = append(sample.Volumes, VolumeSample{Path: path, Percent: pct})
 	}
 
 	return sample, nil
