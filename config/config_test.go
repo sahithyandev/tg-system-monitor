@@ -98,21 +98,19 @@ func defaultTestConfig() *Config {
 		DBPath:               "/default/path",
 		DataRetentionDays:    30,
 		Hysteresis:           5.0,
+		SustainSeconds:       300,
 		Monitors: MonitorsConfig{
 			CPU: MetricThreshold{
 				ThresholdPercent: 85.0,
 				RecoveryPercent:  70.0,
-				SustainSeconds:   300,
 			},
 			Memory: MetricThreshold{
 				ThresholdPercent: 90.0,
 				RecoveryPercent:  80.0,
-				SustainSeconds:   180,
 			},
 			Swap: MetricThreshold{
 				ThresholdPercent: 25.0,
 				RecoveryPercent:  10.0,
-				SustainSeconds:   180,
 			},
 			Disk: DiskConfig{
 				ThresholdPercent: 95.0,
@@ -161,6 +159,7 @@ func Test_mergeConfigs(t *testing.T) {
 				DBPath:               "/default/path",
 				DataRetentionDays:    30,
 				Hysteresis:           5.0,
+				SustainSeconds:       300,
 				Monitors:             defaultConfig.Monitors, // all preserved
 			},
 		},
@@ -181,11 +180,11 @@ func Test_mergeConfigs(t *testing.T) {
 				DBPath:               "/default/path",
 				DataRetentionDays:    30,
 				Hysteresis:           5.0,
+				SustainSeconds:       300, // preserved
 				Monitors: MonitorsConfig{
 					CPU: MetricThreshold{
 						ThresholdPercent: 90.0, // overridden
 						RecoveryPercent:  70.0, // preserved
-						SustainSeconds:   300,  // preserved
 					},
 					Memory: defaultConfig.Monitors.Memory,
 					Swap:   defaultConfig.Monitors.Swap,
@@ -206,10 +205,11 @@ func Test_mergeConfigs(t *testing.T) {
 				DBPath:               "/user/path",
 				DataRetentionDays:    60,
 				Hysteresis:           10.0,
+				SustainSeconds:       600,
 				Monitors: MonitorsConfig{
-					CPU:    MetricThreshold{ThresholdPercent: 90.0, RecoveryPercent: 75.0, SustainSeconds: 600},
-					Memory: MetricThreshold{ThresholdPercent: 95.0, RecoveryPercent: 85.0, SustainSeconds: 300},
-					Swap:   MetricThreshold{ThresholdPercent: 30.0, RecoveryPercent: 15.0, SustainSeconds: 300},
+					CPU:    MetricThreshold{ThresholdPercent: 90.0, RecoveryPercent: 75.0},
+					Memory: MetricThreshold{ThresholdPercent: 95.0, RecoveryPercent: 85.0},
+					Swap:   MetricThreshold{ThresholdPercent: 30.0, RecoveryPercent: 15.0},
 					Disk:   DiskConfig{ThresholdPercent: 98.0, RecoveryPercent: 95.0},
 					Load: LoadConfig{
 						Load1:  LoadLevel{Warning: 3.0, Critical: 5.0},
@@ -228,10 +228,11 @@ func Test_mergeConfigs(t *testing.T) {
 				DBPath:               "/user/path",
 				DataRetentionDays:    60,
 				Hysteresis:           10.0,
+				SustainSeconds:       600,
 				Monitors: MonitorsConfig{
-					CPU:    MetricThreshold{ThresholdPercent: 90.0, RecoveryPercent: 75.0, SustainSeconds: 600},
-					Memory: MetricThreshold{ThresholdPercent: 95.0, RecoveryPercent: 85.0, SustainSeconds: 300},
-					Swap:   MetricThreshold{ThresholdPercent: 30.0, RecoveryPercent: 15.0, SustainSeconds: 300},
+					CPU:    MetricThreshold{ThresholdPercent: 90.0, RecoveryPercent: 75.0},
+					Memory: MetricThreshold{ThresholdPercent: 95.0, RecoveryPercent: 85.0},
+					Swap:   MetricThreshold{ThresholdPercent: 30.0, RecoveryPercent: 15.0},
 					Disk:   DiskConfig{ThresholdPercent: 98.0, RecoveryPercent: 95.0},
 					Load: LoadConfig{
 						Load1:  LoadLevel{Warning: 3.0, Critical: 5.0},
@@ -257,6 +258,7 @@ func Test_mergeConfigs(t *testing.T) {
 				DBPath:               "/default/path",
 				DataRetentionDays:    30,
 				Hysteresis:           5.0,
+				SustainSeconds:       300,
 				Monitors:             defaultConfig.Monitors,
 			},
 		},
@@ -293,6 +295,9 @@ func Test_mergeConfigs(t *testing.T) {
 			if got.Hysteresis != tt.want.Hysteresis {
 				t.Errorf("Hysteresis = %v, want %v", got.Hysteresis, tt.want.Hysteresis)
 			}
+			if got.SustainSeconds != tt.want.SustainSeconds {
+				t.Errorf("SustainSeconds = %v, want %v", got.SustainSeconds, tt.want.SustainSeconds)
+			}
 			// Monitors
 			wm, gm := tt.want.Monitors, got.Monitors
 			if gm.CPU.ThresholdPercent != wm.CPU.ThresholdPercent {
@@ -301,26 +306,17 @@ func Test_mergeConfigs(t *testing.T) {
 			if gm.CPU.RecoveryPercent != wm.CPU.RecoveryPercent {
 				t.Errorf("CPU.RecoveryPercent = %v, want %v", gm.CPU.RecoveryPercent, wm.CPU.RecoveryPercent)
 			}
-			if gm.CPU.SustainSeconds != wm.CPU.SustainSeconds {
-				t.Errorf("CPU.SustainSeconds = %v, want %v", gm.CPU.SustainSeconds, wm.CPU.SustainSeconds)
-			}
 			if gm.Memory.ThresholdPercent != wm.Memory.ThresholdPercent {
 				t.Errorf("Memory.ThresholdPercent = %v, want %v", gm.Memory.ThresholdPercent, wm.Memory.ThresholdPercent)
 			}
 			if gm.Memory.RecoveryPercent != wm.Memory.RecoveryPercent {
 				t.Errorf("Memory.RecoveryPercent = %v, want %v", gm.Memory.RecoveryPercent, wm.Memory.RecoveryPercent)
 			}
-			if gm.Memory.SustainSeconds != wm.Memory.SustainSeconds {
-				t.Errorf("Memory.SustainSeconds = %v, want %v", gm.Memory.SustainSeconds, wm.Memory.SustainSeconds)
-			}
 			if gm.Swap.ThresholdPercent != wm.Swap.ThresholdPercent {
 				t.Errorf("Swap.ThresholdPercent = %v, want %v", gm.Swap.ThresholdPercent, wm.Swap.ThresholdPercent)
 			}
 			if gm.Swap.RecoveryPercent != wm.Swap.RecoveryPercent {
 				t.Errorf("Swap.RecoveryPercent = %v, want %v", gm.Swap.RecoveryPercent, wm.Swap.RecoveryPercent)
-			}
-			if gm.Swap.SustainSeconds != wm.Swap.SustainSeconds {
-				t.Errorf("Swap.SustainSeconds = %v, want %v", gm.Swap.SustainSeconds, wm.Swap.SustainSeconds)
 			}
 			if gm.Disk.ThresholdPercent != wm.Disk.ThresholdPercent {
 				t.Errorf("Disk.ThresholdPercent = %v, want %v", gm.Disk.ThresholdPercent, wm.Disk.ThresholdPercent)

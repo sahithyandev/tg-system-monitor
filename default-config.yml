@@ -31,24 +31,23 @@ data_retention_days: 30
 # Detection hysteresis to prevent flapping (percent)
 hysteresis: 5.0
 
+# How long a threshold must be continuously exceeded before an alert fires (seconds)
+sustain_seconds: 300
+
 # Per-metric monitoring thresholds.
 # threshold_percent triggers a critical alert; recovery_percent marks recovery.
-# sustain_seconds requires the threshold to be exceeded for this long before alerting.
 monitors:
   cpu:
     threshold_percent: 85.0
     recovery_percent: 70.0
-    sustain_seconds: 300
 
   memory:
     threshold_percent: 90.0
     recovery_percent: 80.0
-    sustain_seconds: 180
 
   swap:
     threshold_percent: 25.0
     recovery_percent: 10.0
-    sustain_seconds: 180
 
   disk:
     threshold_percent: 95.0

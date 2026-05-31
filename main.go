@@ -172,7 +172,7 @@ func runMonitor() {
 			Warning:  m.Load.Load15.Warning,
 			Critical: m.Load.Load15.Critical,
 		},
-		WindowSecs:   m.CPU.SustainSeconds, // Use CPU sustain seconds as window
+		WindowSecs:   cfg.SustainSeconds,
 		CooldownSecs: cfg.AlertCooldownSeconds,
 		Hysteresis:   cfg.Hysteresis,
 	}

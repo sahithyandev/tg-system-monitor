@@ -169,21 +169,20 @@ The bot uses a YAML configuration file located at `~/.config/tg-system-monitor/c
 Each metric is configured under `monitors.<metric>`:
 
 ```yaml
+sustain_seconds: 300          # detection window: threshold must be exceeded for this long before alerting
+
 monitors:
   cpu:
     threshold_percent: 85.0   # critical alert when CPU exceeds this
-    recovery_percent: 70.0    # warning alert when CPU exceeds this; alert clears below (recovery_percent - hysteresis)
-    sustain_seconds: 300      # detection window size in seconds (shared across all metrics)
+    recovery_percent: 70.0    # alert clears below (recovery_percent - hysteresis)
 
   memory:
     threshold_percent: 90.0
     recovery_percent: 80.0
-    sustain_seconds: 180      # note: only cpu.sustain_seconds is used as the detection window
 
   swap:
     threshold_percent: 25.0
     recovery_percent: 10.0
-    sustain_seconds: 180      # note: only cpu.sustain_seconds is used as the detection window
 
   disk:
     threshold_percent: 95.0

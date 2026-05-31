@@ -43,7 +43,6 @@ type VolumeConfig struct {
 type MetricThreshold struct {
 	ThresholdPercent float64 `yaml:"threshold_percent"`
 	RecoveryPercent  float64 `yaml:"recovery_percent"`
-	SustainSeconds   int     `yaml:"sustain_seconds"`
 }
 
 // LoadLevel holds warning/critical levels for a single load-average window.
@@ -87,6 +86,7 @@ type Config struct {
 	DBPath               string  `yaml:"db_path"`
 	DataRetentionDays    int     `yaml:"data_retention_days"`
 	Hysteresis           float64 `yaml:"hysteresis"`
+	SustainSeconds       int     `yaml:"sustain_seconds"`
 
 	MetricsAPIAddr string `yaml:"metrics_api_addr"`
 
@@ -99,13 +99,14 @@ func (c *Config) PrintThresholds() {
 	fmt.Println("==========================")
 
 	m := c.Monitors
-	fmt.Printf("CPU     | Warning: %.1f%% | Critical: %.1f%% | Sustain: %d seconds\n",
-		m.CPU.ThresholdPercent, m.CPU.RecoveryPercent, m.CPU.SustainSeconds)
-	fmt.Printf("Memory  | Warning: %.1f%% | Critical: %.1f%% | Sustain: %d seconds\n",
-		m.Memory.ThresholdPercent, m.Memory.RecoveryPercent, m.Memory.SustainSeconds)
-	fmt.Printf("Swap    | Warning: %.1f%% | Critical: %.1f%% | Sustain: %d seconds\n",
-		m.Swap.ThresholdPercent, m.Swap.RecoveryPercent, m.Swap.SustainSeconds)
-	fmt.Printf("Disk    | Warning: %.1f%% | Critical: %.1f%% | Sustain: - seconds\n",
+	fmt.Printf("Detection window (sustain): %d seconds\n", c.SustainSeconds)
+	fmt.Printf("CPU     | Warning: %.1f%% | Critical: %.1f%%\n",
+		m.CPU.ThresholdPercent, m.CPU.RecoveryPercent)
+	fmt.Printf("Memory  | Warning: %.1f%% | Critical: %.1f%%\n",
+		m.Memory.ThresholdPercent, m.Memory.RecoveryPercent)
+	fmt.Printf("Swap    | Warning: %.1f%% | Critical: %.1f%%\n",
+		m.Swap.ThresholdPercent, m.Swap.RecoveryPercent)
+	fmt.Printf("Disk    | Warning: %.1f%% | Critical: %.1f%%\n",
 		m.Disk.ThresholdPercent, m.Disk.RecoveryPercent)
 	fmt.Printf("Load1   | Warning: %.1f | Critical: %.1f\n",
 		m.Load.Load1.Warning, m.Load.Load1.Critical)
@@ -170,26 +171,17 @@ func mergeMonitors(dst, src *MonitorsConfig) {
 	if src.CPU.RecoveryPercent != 0 {
 		dst.CPU.RecoveryPercent = src.CPU.RecoveryPercent
 	}
-	if src.CPU.SustainSeconds != 0 {
-		dst.CPU.SustainSeconds = src.CPU.SustainSeconds
-	}
 	if src.Memory.ThresholdPercent != 0 {
 		dst.Memory.ThresholdPercent = src.Memory.ThresholdPercent
 	}
 	if src.Memory.RecoveryPercent != 0 {
 		dst.Memory.RecoveryPercent = src.Memory.RecoveryPercent
 	}
-	if src.Memory.SustainSeconds != 0 {
-		dst.Memory.SustainSeconds = src.Memory.SustainSeconds
-	}
 	if src.Swap.ThresholdPercent != 0 {
 		dst.Swap.ThresholdPercent = src.Swap.ThresholdPercent
 	}
 	if src.Swap.RecoveryPercent != 0 {
 		dst.Swap.RecoveryPercent = src.Swap.RecoveryPercent
-	}
-	if src.Swap.SustainSeconds != 0 {
-		dst.Swap.SustainSeconds = src.Swap.SustainSeconds
 	}
 	if src.Disk.ThresholdPercent != 0 {
 		dst.Disk.ThresholdPercent = src.Disk.ThresholdPercent
@@ -256,6 +248,9 @@ func mergeConfigs(defaultConfig, userConfig *Config) *Config {
 	}
 	if userConfig.Hysteresis != 0 {
 		merged.Hysteresis = userConfig.Hysteresis
+	}
+	if userConfig.SustainSeconds != 0 {
+		merged.SustainSeconds = userConfig.SustainSeconds
 	}
 	if userConfig.MetricsAPIAddr != "" {
 		merged.MetricsAPIAddr = userConfig.MetricsAPIAddr
