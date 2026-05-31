@@ -106,15 +106,18 @@ func (c *Collector) getCPUUsage() (float64, error) {
 		}
 	}
 
-	deltaTotal := total - c.prevCPUTotal
-	deltaIdle := idle - c.prevCPUIdle
-
+	prevTotal := c.prevCPUTotal
+	prevIdle := c.prevCPUIdle
 	c.prevCPUTotal = total
 	c.prevCPUIdle = idle
 
-	if deltaTotal == 0 {
+	// Counter reset or first sample — skip to avoid uint64 underflow.
+	if total < prevTotal || idle < prevIdle || total == prevTotal {
 		return 0, nil
 	}
+
+	deltaTotal := total - prevTotal
+	deltaIdle := idle - prevIdle
 
 	cpuPercent := float64(deltaTotal-deltaIdle) / float64(deltaTotal) * 100
 	return cpuPercent, nil

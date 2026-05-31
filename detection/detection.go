@@ -292,6 +292,8 @@ func (d *DetectionEngine) evaluateDerivedAlerts(samples []*metrics.MetricSample)
 	loadIncrease := latest.Load1 - previous.Load1
 	if loadIncrease >= 2.0 && latest.Load1 >= d.config.Load1.Warning {
 		d.checkAndStoreAlert("load_spike_warning", LoadSpike, Warning, latest.Load1, previous.Load1, now)
+	} else {
+		d.checkAndStoreRecovery("load_spike_warning", LoadSpike, Warning, latest.Load1, previous.Load1, now)
 	}
 
 	// Resource pressure (multiple metrics high)

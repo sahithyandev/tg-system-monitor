@@ -100,13 +100,13 @@ func (c *Config) PrintThresholds() {
 
 	m := c.Monitors
 	fmt.Printf("CPU     | Warning: %.1f%% | Critical: %.1f%% | Sustain: %d seconds\n",
-		m.CPU.RecoveryPercent, m.CPU.ThresholdPercent, m.CPU.SustainSeconds)
+		m.CPU.ThresholdPercent, m.CPU.RecoveryPercent, m.CPU.SustainSeconds)
 	fmt.Printf("Memory  | Warning: %.1f%% | Critical: %.1f%% | Sustain: %d seconds\n",
-		m.Memory.RecoveryPercent, m.Memory.ThresholdPercent, m.Memory.SustainSeconds)
+		m.Memory.ThresholdPercent, m.Memory.RecoveryPercent, m.Memory.SustainSeconds)
 	fmt.Printf("Swap    | Warning: %.1f%% | Critical: %.1f%% | Sustain: %d seconds\n",
-		m.Swap.RecoveryPercent, m.Swap.ThresholdPercent, m.Swap.SustainSeconds)
+		m.Swap.ThresholdPercent, m.Swap.RecoveryPercent, m.Swap.SustainSeconds)
 	fmt.Printf("Disk    | Warning: %.1f%% | Critical: %.1f%% | Sustain: - seconds\n",
-		m.Disk.RecoveryPercent, m.Disk.ThresholdPercent)
+		m.Disk.ThresholdPercent, m.Disk.RecoveryPercent)
 	fmt.Printf("Load1   | Warning: %.1f | Critical: %.1f\n",
 		m.Load.Load1.Warning, m.Load.Load1.Critical)
 	fmt.Printf("Load5   | Warning: %.1f | Critical: %.1f\n",
@@ -125,7 +125,7 @@ func (c *Config) PrintThresholds() {
 			if recovery == 0 {
 				recovery = m.Disk.RecoveryPercent
 			}
-			fmt.Printf("  %-20s | Warning: %.1f%% | Critical: %.1f%%\n", v.Path, recovery, threshold)
+			fmt.Printf("  %-20s | Warning: %.1f%% | Critical: %.1f%%\n", v.Path, threshold, recovery)
 		}
 	}
 	fmt.Println()

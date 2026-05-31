@@ -174,13 +174,15 @@ func (b *Bot) SendAlert(alert detection.Alert, transition string) error {
 	}
 
 	if len(errors) > 0 {
-		return fmt.Errorf("%s: %s", msg.LogFailed(msg.ComponentBot, "alert delivery", "multiple users failed"), strings.Join(errors, "; "))
+		fmt.Println(msg.LogFailed(msg.ComponentBot, "alert delivery (partial)", strings.Join(errors, "; ")))
 	}
-	if sentCount == 0 {
-		return nil
+	if sentCount == 0 && len(errors) > 0 {
+		return fmt.Errorf("alert delivery failed for all users: %s", strings.Join(errors, "; "))
 	}
 
-	fmt.Println(msg.LogCompleted(msg.ComponentBot, fmt.Sprintf("alert sent to %d users", sentCount)))
+	if sentCount > 0 {
+		fmt.Println(msg.LogCompleted(msg.ComponentBot, fmt.Sprintf("alert sent to %d users", sentCount)))
+	}
 	return nil
 }
 
