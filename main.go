@@ -129,7 +129,7 @@ func runMonitor() {
 	}
 
 	var volumePaths []string
-	for _, v := range cfg.Volumes {
+	for _, v := range cfg.Monitors.Disk.Volumes {
 		volumePaths = append(volumePaths, v.Path)
 	}
 	collector := metrics.NewCollector(volumePaths)
@@ -142,47 +142,48 @@ func runMonitor() {
 	defer database.Close()
 
 	// Initialize detection engine with config values and fallbacks
+	m := cfg.Monitors
 	detectionConfig := detection.DetectionConfig{
 		CPU: detection.Threshold{
-			Warning:  cfg.CPURecoveryPercent,  // Use recovery as warning threshold
-			Critical: cfg.CPUThresholdPercent, // Use threshold as critical
+			Warning:  m.CPU.RecoveryPercent,  // Use recovery as warning threshold
+			Critical: m.CPU.ThresholdPercent, // Use threshold as critical
 		},
 		Memory: detection.Threshold{
-			Warning:  cfg.MemRecoveryPercent,
-			Critical: cfg.MemThresholdPercent,
+			Warning:  m.Memory.RecoveryPercent,
+			Critical: m.Memory.ThresholdPercent,
 		},
 		Disk: detection.Threshold{
-			Warning:  cfg.DiskRecoveryPercent,
-			Critical: cfg.DiskThresholdPercent,
+			Warning:  m.Disk.RecoveryPercent,
+			Critical: m.Disk.ThresholdPercent,
 		},
 		Swap: detection.Threshold{
-			Warning:  cfg.SwapRecoveryPercent,
-			Critical: cfg.SwapThresholdPercent,
+			Warning:  m.Swap.RecoveryPercent,
+			Critical: m.Swap.ThresholdPercent,
 		},
 		Load1: detection.Threshold{
-			Warning:  cfg.Load1Warning,
-			Critical: cfg.Load1Critical,
+			Warning:  m.Load.Load1.Warning,
+			Critical: m.Load.Load1.Critical,
 		},
 		Load5: detection.Threshold{
-			Warning:  cfg.Load5Warning,
-			Critical: cfg.Load5Critical,
+			Warning:  m.Load.Load5.Warning,
+			Critical: m.Load.Load5.Critical,
 		},
 		Load15: detection.Threshold{
-			Warning:  cfg.Load15Warning,
-			Critical: cfg.Load15Critical,
+			Warning:  m.Load.Load15.Warning,
+			Critical: m.Load.Load15.Critical,
 		},
-		WindowSecs:   cfg.CPUSustainSeconds, // Use CPU sustain seconds as window
+		WindowSecs:   m.CPU.SustainSeconds, // Use CPU sustain seconds as window
 		CooldownSecs: cfg.AlertCooldownSeconds,
 		Hysteresis:   cfg.Hysteresis,
 	}
-	for _, v := range cfg.Volumes {
+	for _, v := range m.Disk.Volumes {
 		threshold := v.ThresholdPercent
 		if threshold == 0 {
-			threshold = cfg.DiskThresholdPercent
+			threshold = m.Disk.ThresholdPercent
 		}
 		recovery := v.RecoveryPercent
 		if recovery == 0 {
-			recovery = cfg.DiskRecoveryPercent
+			recovery = m.Disk.RecoveryPercent
 		}
 		detectionConfig.Volumes = append(detectionConfig.Volumes, detection.VolumeThreshold{
 			Path: v.Path,

@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"gopkg.in/yaml.v3"
@@ -85,34 +86,50 @@ func TestConfig_LoadSave(t *testing.T) {
 	}
 }
 
-func Test_mergeConfigs(t *testing.T) {
-	defaultConfig := &Config{
+// defaultTestConfig returns a fully populated Config used as the defaults baseline in
+// merge tests. Uses nested MonitorsConfig to match the new struct shape.
+func defaultTestConfig() *Config {
+	return &Config{
 		BotToken:             "default_token",
 		JoinPasswordHash:     "default_hash",
 		HostnameOverride:     "default_host",
 		PollInterval:         15,
-		CPUThresholdPercent:  85.0,
-		CPURecoveryPercent:   70.0,
-		CPUSustainSeconds:    300,
-		MemThresholdPercent:  90.0,
-		MemRecoveryPercent:   80.0,
-		MemSustainSeconds:    180,
-		SwapThresholdPercent: 25.0,
-		SwapRecoveryPercent:  10.0,
-		SwapSustainSeconds:   180,
-		DiskThresholdPercent: 95.0,
-		DiskRecoveryPercent:  90.0,
-		Load1Warning:         2.0,
-		Load1Critical:        4.0,
-		Load5Warning:         1.5,
-		Load5Critical:        3.0,
-		Load15Warning:        1.0,
-		Load15Critical:       2.0,
-		Hysteresis:           5.0,
 		AlertCooldownSeconds: 1800,
 		TopProcessCount:      5,
 		DBPath:               "/default/path",
+		DataRetentionDays:    30,
+		Hysteresis:           5.0,
+		Monitors: MonitorsConfig{
+			CPU: MetricThreshold{
+				ThresholdPercent: 85.0,
+				RecoveryPercent:  70.0,
+				SustainSeconds:   300,
+			},
+			Memory: MetricThreshold{
+				ThresholdPercent: 90.0,
+				RecoveryPercent:  80.0,
+				SustainSeconds:   180,
+			},
+			Swap: MetricThreshold{
+				ThresholdPercent: 25.0,
+				RecoveryPercent:  10.0,
+				SustainSeconds:   180,
+			},
+			Disk: DiskConfig{
+				ThresholdPercent: 95.0,
+				RecoveryPercent:  90.0,
+			},
+			Load: LoadConfig{
+				Load1:  LoadLevel{Warning: 2.0, Critical: 4.0},
+				Load5:  LoadLevel{Warning: 1.5, Critical: 3.0},
+				Load15: LoadLevel{Warning: 1.0, Critical: 2.0},
+			},
+		},
 	}
+}
+
+func Test_mergeConfigs(t *testing.T) {
+	defaultConfig := defaultTestConfig()
 
 	tests := []struct {
 		name       string
@@ -130,37 +147,52 @@ func Test_mergeConfigs(t *testing.T) {
 			want:       defaultConfig,
 		},
 		{
-			name: "Partial override",
+			name: "Partial override — top-level scalars only",
 			userConfig: &Config{
 				BotToken:     "user_token",
 				PollInterval: 30,
 			},
 			want: &Config{
-				BotToken:             "user_token",    // overridden
-				JoinPasswordHash:     "default_hash",  // preserved
-				HostnameOverride:     "default_host",  // preserved
-				PollInterval:         30,              // overridden
-				CPUThresholdPercent:  85.0,            // preserved
-				CPURecoveryPercent:   70.0,            // preserved
-				CPUSustainSeconds:    300,             // preserved
-				MemThresholdPercent:  90.0,            // preserved
-				MemRecoveryPercent:   80.0,            // preserved
-				MemSustainSeconds:    180,             // preserved
-				SwapThresholdPercent: 25.0,            // preserved
-				SwapRecoveryPercent:  10.0,            // preserved
-				SwapSustainSeconds:   180,             // preserved
-				DiskThresholdPercent: 95.0,            // preserved
-				DiskRecoveryPercent:  90.0,            // preserved
-				Load1Warning:         2.0,             // preserved
-				Load1Critical:        4.0,             // preserved
-				Load5Warning:         1.5,             // preserved
-				Load5Critical:        3.0,             // preserved
-				Load15Warning:        1.0,             // preserved
-				Load15Critical:       2.0,             // preserved
-				Hysteresis:           5.0,             // preserved
-				AlertCooldownSeconds: 1800,            // preserved
-				TopProcessCount:      5,               // preserved
-				DBPath:               "/default/path", // preserved
+				BotToken:             "user_token",
+				JoinPasswordHash:     "default_hash",
+				HostnameOverride:     "default_host",
+				PollInterval:         30,
+				AlertCooldownSeconds: 1800,
+				TopProcessCount:      5,
+				DBPath:               "/default/path",
+				DataRetentionDays:    30,
+				Hysteresis:           5.0,
+				Monitors:             defaultConfig.Monitors, // all preserved
+			},
+		},
+		{
+			name: "Partial override — nested monitors",
+			userConfig: &Config{
+				Monitors: MonitorsConfig{
+					CPU: MetricThreshold{ThresholdPercent: 90.0},
+				},
+			},
+			want: &Config{
+				BotToken:             "default_token",
+				JoinPasswordHash:     "default_hash",
+				HostnameOverride:     "default_host",
+				PollInterval:         15,
+				AlertCooldownSeconds: 1800,
+				TopProcessCount:      5,
+				DBPath:               "/default/path",
+				DataRetentionDays:    30,
+				Hysteresis:           5.0,
+				Monitors: MonitorsConfig{
+					CPU: MetricThreshold{
+						ThresholdPercent: 90.0, // overridden
+						RecoveryPercent:  70.0, // preserved
+						SustainSeconds:   300,  // preserved
+					},
+					Memory: defaultConfig.Monitors.Memory,
+					Swap:   defaultConfig.Monitors.Swap,
+					Disk:   defaultConfig.Monitors.Disk,
+					Load:   defaultConfig.Monitors.Load,
+				},
 			},
 		},
 		{
@@ -170,88 +202,63 @@ func Test_mergeConfigs(t *testing.T) {
 				JoinPasswordHash:     "user_hash",
 				HostnameOverride:     "user_host",
 				PollInterval:         60,
-				CPUThresholdPercent:  90.0,
-				CPURecoveryPercent:   75.0,
-				CPUSustainSeconds:    600,
-				MemThresholdPercent:  95.0,
-				MemRecoveryPercent:   85.0,
-				MemSustainSeconds:    300,
-				SwapThresholdPercent: 30.0,
-				SwapRecoveryPercent:  15.0,
-				SwapSustainSeconds:   300,
-				DiskThresholdPercent: 98.0,
-				DiskRecoveryPercent:  95.0,
-				Load1Warning:         3.0,
-				Load1Critical:        5.0,
-				Load5Warning:         2.0,
-				Load5Critical:        4.0,
-				Load15Warning:        1.5,
-				Load15Critical:       2.5,
-				Hysteresis:           10.0,
 				AlertCooldownSeconds: 3600,
 				TopProcessCount:      10,
 				DBPath:               "/user/path",
+				DataRetentionDays:    60,
+				Hysteresis:           10.0,
+				Monitors: MonitorsConfig{
+					CPU:    MetricThreshold{ThresholdPercent: 90.0, RecoveryPercent: 75.0, SustainSeconds: 600},
+					Memory: MetricThreshold{ThresholdPercent: 95.0, RecoveryPercent: 85.0, SustainSeconds: 300},
+					Swap:   MetricThreshold{ThresholdPercent: 30.0, RecoveryPercent: 15.0, SustainSeconds: 300},
+					Disk:   DiskConfig{ThresholdPercent: 98.0, RecoveryPercent: 95.0},
+					Load: LoadConfig{
+						Load1:  LoadLevel{Warning: 3.0, Critical: 5.0},
+						Load5:  LoadLevel{Warning: 2.0, Critical: 4.0},
+						Load15: LoadLevel{Warning: 1.5, Critical: 2.5},
+					},
+				},
 			},
 			want: &Config{
 				BotToken:             "user_token",
 				JoinPasswordHash:     "user_hash",
 				HostnameOverride:     "user_host",
 				PollInterval:         60,
-				CPUThresholdPercent:  90.0,
-				CPURecoveryPercent:   75.0,
-				CPUSustainSeconds:    600,
-				MemThresholdPercent:  95.0,
-				MemRecoveryPercent:   85.0,
-				MemSustainSeconds:    300,
-				SwapThresholdPercent: 30.0,
-				SwapRecoveryPercent:  15.0,
-				SwapSustainSeconds:   300,
-				DiskThresholdPercent: 98.0,
-				DiskRecoveryPercent:  95.0,
-				Load1Warning:         3.0,
-				Load1Critical:        5.0,
-				Load5Warning:         2.0,
-				Load5Critical:        4.0,
-				Load15Warning:        1.5,
-				Load15Critical:       2.5,
-				Hysteresis:           10.0,
 				AlertCooldownSeconds: 3600,
 				TopProcessCount:      10,
 				DBPath:               "/user/path",
+				DataRetentionDays:    60,
+				Hysteresis:           10.0,
+				Monitors: MonitorsConfig{
+					CPU:    MetricThreshold{ThresholdPercent: 90.0, RecoveryPercent: 75.0, SustainSeconds: 600},
+					Memory: MetricThreshold{ThresholdPercent: 95.0, RecoveryPercent: 85.0, SustainSeconds: 300},
+					Swap:   MetricThreshold{ThresholdPercent: 30.0, RecoveryPercent: 15.0, SustainSeconds: 300},
+					Disk:   DiskConfig{ThresholdPercent: 98.0, RecoveryPercent: 95.0},
+					Load: LoadConfig{
+						Load1:  LoadLevel{Warning: 3.0, Critical: 5.0},
+						Load5:  LoadLevel{Warning: 2.0, Critical: 4.0},
+						Load15: LoadLevel{Warning: 1.5, Critical: 2.5},
+					},
+				},
 			},
 		},
 		{
-			name: "Undefined poll_interval_seconds in user config",
+			name: "Undefined poll_interval_seconds uses default",
 			userConfig: &Config{
 				BotToken: "user_token",
-				// PollInterval is undefined (zero value)
+				// PollInterval is zero — should fall back to default
 			},
 			want: &Config{
-				BotToken:             "user_token",    // overridden
-				JoinPasswordHash:     "default_hash",  // preserved
-				HostnameOverride:     "default_host",  // preserved
-				PollInterval:         15,              // should use default value
-				CPUThresholdPercent:  85.0,            // preserved
-				CPURecoveryPercent:   70.0,            // preserved
-				CPUSustainSeconds:    300,             // preserved
-				MemThresholdPercent:  90.0,            // preserved
-				MemRecoveryPercent:   80.0,            // preserved
-				MemSustainSeconds:    180,             // preserved
-				SwapThresholdPercent: 25.0,            // preserved
-				SwapRecoveryPercent:  10.0,            // preserved
-				SwapSustainSeconds:   180,             // preserved
-				DiskThresholdPercent: 95.0,            // preserved
-				DiskRecoveryPercent:  90.0,            // preserved
-				Load1Warning:         2.0,             // preserved
-				Load1Critical:        4.0,             // preserved
-				Load5Warning:         1.5,             // preserved
-				Load5Critical:        3.0,             // preserved
-				Load15Warning:        1.0,             // preserved
-				Load15Critical:       2.0,             // preserved
-				Hysteresis:           5.0,             // preserved
-				AlertCooldownSeconds: 1800,            // preserved
-				TopProcessCount:      5,               // preserved
-				DBPath:               "/default/path", // preserved
+				BotToken:             "user_token",
+				JoinPasswordHash:     "default_hash",
+				HostnameOverride:     "default_host",
+				PollInterval:         15, // default preserved
+				AlertCooldownSeconds: 1800,
+				TopProcessCount:      5,
+				DBPath:               "/default/path",
+				DataRetentionDays:    30,
+				Hysteresis:           5.0,
+				Monitors:             defaultConfig.Monitors,
 			},
 		},
 	}
@@ -259,6 +266,7 @@ func Test_mergeConfigs(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := mergeConfigs(defaultConfig, tt.userConfig)
+
 			if got.BotToken != tt.want.BotToken {
 				t.Errorf("BotToken = %v, want %v", got.BotToken, tt.want.BotToken)
 			}
@@ -271,60 +279,6 @@ func Test_mergeConfigs(t *testing.T) {
 			if got.PollInterval != tt.want.PollInterval {
 				t.Errorf("PollInterval = %v, want %v", got.PollInterval, tt.want.PollInterval)
 			}
-			if got.CPUThresholdPercent != tt.want.CPUThresholdPercent {
-				t.Errorf("CPUThresholdPercent = %v, want %v", got.CPUThresholdPercent, tt.want.CPUThresholdPercent)
-			}
-			if got.CPURecoveryPercent != tt.want.CPURecoveryPercent {
-				t.Errorf("CPURecoveryPercent = %v, want %v", got.CPURecoveryPercent, tt.want.CPURecoveryPercent)
-			}
-			if got.CPUSustainSeconds != tt.want.CPUSustainSeconds {
-				t.Errorf("CPUSustainSeconds = %v, want %v", got.CPUSustainSeconds, tt.want.CPUSustainSeconds)
-			}
-			if got.MemThresholdPercent != tt.want.MemThresholdPercent {
-				t.Errorf("MemThresholdPercent = %v, want %v", got.MemThresholdPercent, tt.want.MemThresholdPercent)
-			}
-			if got.MemRecoveryPercent != tt.want.MemRecoveryPercent {
-				t.Errorf("MemRecoveryPercent = %v, want %v", got.MemRecoveryPercent, tt.want.MemRecoveryPercent)
-			}
-			if got.MemSustainSeconds != tt.want.MemSustainSeconds {
-				t.Errorf("MemSustainSeconds = %v, want %v", got.MemSustainSeconds, tt.want.MemSustainSeconds)
-			}
-			if got.SwapThresholdPercent != tt.want.SwapThresholdPercent {
-				t.Errorf("SwapThresholdPercent = %v, want %v", got.SwapThresholdPercent, tt.want.SwapThresholdPercent)
-			}
-			if got.SwapRecoveryPercent != tt.want.SwapRecoveryPercent {
-				t.Errorf("SwapRecoveryPercent = %v, want %v", got.SwapRecoveryPercent, tt.want.SwapRecoveryPercent)
-			}
-			if got.SwapSustainSeconds != tt.want.SwapSustainSeconds {
-				t.Errorf("SwapSustainSeconds = %v, want %v", got.SwapSustainSeconds, tt.want.SwapSustainSeconds)
-			}
-			if got.DiskThresholdPercent != tt.want.DiskThresholdPercent {
-				t.Errorf("DiskThresholdPercent = %v, want %v", got.DiskThresholdPercent, tt.want.DiskThresholdPercent)
-			}
-			if got.DiskRecoveryPercent != tt.want.DiskRecoveryPercent {
-				t.Errorf("DiskRecoveryPercent = %v, want %v", got.DiskRecoveryPercent, tt.want.DiskRecoveryPercent)
-			}
-			if got.Load1Warning != tt.want.Load1Warning {
-				t.Errorf("Load1Warning = %v, want %v", got.Load1Warning, tt.want.Load1Warning)
-			}
-			if got.Load1Critical != tt.want.Load1Critical {
-				t.Errorf("Load1Critical = %v, want %v", got.Load1Critical, tt.want.Load1Critical)
-			}
-			if got.Load5Warning != tt.want.Load5Warning {
-				t.Errorf("Load5Warning = %v, want %v", got.Load5Warning, tt.want.Load5Warning)
-			}
-			if got.Load5Critical != tt.want.Load5Critical {
-				t.Errorf("Load5Critical = %v, want %v", got.Load5Critical, tt.want.Load5Critical)
-			}
-			if got.Load15Warning != tt.want.Load15Warning {
-				t.Errorf("Load15Warning = %v, want %v", got.Load15Warning, tt.want.Load15Warning)
-			}
-			if got.Load15Critical != tt.want.Load15Critical {
-				t.Errorf("Load15Critical = %v, want %v", got.Load15Critical, tt.want.Load15Critical)
-			}
-			if got.Hysteresis != tt.want.Hysteresis {
-				t.Errorf("Hysteresis = %v, want %v", got.Hysteresis, tt.want.Hysteresis)
-			}
 			if got.AlertCooldownSeconds != tt.want.AlertCooldownSeconds {
 				t.Errorf("AlertCooldownSeconds = %v, want %v", got.AlertCooldownSeconds, tt.want.AlertCooldownSeconds)
 			}
@@ -333,6 +287,65 @@ func Test_mergeConfigs(t *testing.T) {
 			}
 			if got.DBPath != tt.want.DBPath {
 				t.Errorf("DBPath = %v, want %v", got.DBPath, tt.want.DBPath)
+			}
+			if got.DataRetentionDays != tt.want.DataRetentionDays {
+				t.Errorf("DataRetentionDays = %v, want %v", got.DataRetentionDays, tt.want.DataRetentionDays)
+			}
+			if got.Hysteresis != tt.want.Hysteresis {
+				t.Errorf("Hysteresis = %v, want %v", got.Hysteresis, tt.want.Hysteresis)
+			}
+			// Monitors
+			wm, gm := tt.want.Monitors, got.Monitors
+			if gm.CPU.ThresholdPercent != wm.CPU.ThresholdPercent {
+				t.Errorf("CPU.ThresholdPercent = %v, want %v", gm.CPU.ThresholdPercent, wm.CPU.ThresholdPercent)
+			}
+			if gm.CPU.RecoveryPercent != wm.CPU.RecoveryPercent {
+				t.Errorf("CPU.RecoveryPercent = %v, want %v", gm.CPU.RecoveryPercent, wm.CPU.RecoveryPercent)
+			}
+			if gm.CPU.SustainSeconds != wm.CPU.SustainSeconds {
+				t.Errorf("CPU.SustainSeconds = %v, want %v", gm.CPU.SustainSeconds, wm.CPU.SustainSeconds)
+			}
+			if gm.Memory.ThresholdPercent != wm.Memory.ThresholdPercent {
+				t.Errorf("Memory.ThresholdPercent = %v, want %v", gm.Memory.ThresholdPercent, wm.Memory.ThresholdPercent)
+			}
+			if gm.Memory.RecoveryPercent != wm.Memory.RecoveryPercent {
+				t.Errorf("Memory.RecoveryPercent = %v, want %v", gm.Memory.RecoveryPercent, wm.Memory.RecoveryPercent)
+			}
+			if gm.Memory.SustainSeconds != wm.Memory.SustainSeconds {
+				t.Errorf("Memory.SustainSeconds = %v, want %v", gm.Memory.SustainSeconds, wm.Memory.SustainSeconds)
+			}
+			if gm.Swap.ThresholdPercent != wm.Swap.ThresholdPercent {
+				t.Errorf("Swap.ThresholdPercent = %v, want %v", gm.Swap.ThresholdPercent, wm.Swap.ThresholdPercent)
+			}
+			if gm.Swap.RecoveryPercent != wm.Swap.RecoveryPercent {
+				t.Errorf("Swap.RecoveryPercent = %v, want %v", gm.Swap.RecoveryPercent, wm.Swap.RecoveryPercent)
+			}
+			if gm.Swap.SustainSeconds != wm.Swap.SustainSeconds {
+				t.Errorf("Swap.SustainSeconds = %v, want %v", gm.Swap.SustainSeconds, wm.Swap.SustainSeconds)
+			}
+			if gm.Disk.ThresholdPercent != wm.Disk.ThresholdPercent {
+				t.Errorf("Disk.ThresholdPercent = %v, want %v", gm.Disk.ThresholdPercent, wm.Disk.ThresholdPercent)
+			}
+			if gm.Disk.RecoveryPercent != wm.Disk.RecoveryPercent {
+				t.Errorf("Disk.RecoveryPercent = %v, want %v", gm.Disk.RecoveryPercent, wm.Disk.RecoveryPercent)
+			}
+			if gm.Load.Load1.Warning != wm.Load.Load1.Warning {
+				t.Errorf("Load1.Warning = %v, want %v", gm.Load.Load1.Warning, wm.Load.Load1.Warning)
+			}
+			if gm.Load.Load1.Critical != wm.Load.Load1.Critical {
+				t.Errorf("Load1.Critical = %v, want %v", gm.Load.Load1.Critical, wm.Load.Load1.Critical)
+			}
+			if gm.Load.Load5.Warning != wm.Load.Load5.Warning {
+				t.Errorf("Load5.Warning = %v, want %v", gm.Load.Load5.Warning, wm.Load.Load5.Warning)
+			}
+			if gm.Load.Load5.Critical != wm.Load.Load5.Critical {
+				t.Errorf("Load5.Critical = %v, want %v", gm.Load.Load5.Critical, wm.Load.Load5.Critical)
+			}
+			if gm.Load.Load15.Warning != wm.Load.Load15.Warning {
+				t.Errorf("Load15.Warning = %v, want %v", gm.Load.Load15.Warning, wm.Load.Load15.Warning)
+			}
+			if gm.Load.Load15.Critical != wm.Load.Load15.Critical {
+				t.Errorf("Load15.Critical = %v, want %v", gm.Load.Load15.Critical, wm.Load.Load15.Critical)
 			}
 		})
 	}
@@ -359,30 +372,41 @@ func Test_Load_WithMerging(t *testing.T) {
 		{
 			name:             "No user config file",
 			userConfigYAML:   "",
-			wantPollInterval: 15,                    // default
-			wantBotToken:     "YOUR_BOT_TOKEN_HERE", // default from default-config.yml
-			wantCPUThreshold: 85.0,                  // default
+			wantPollInterval: 15,
+			wantBotToken:     "YOUR_BOT_TOKEN_HERE",
+			wantCPUThreshold: 85.0,
 		},
 		{
 			name:             "Empty user config file",
 			userConfigYAML:   "",
-			wantPollInterval: 15,                    // default
-			wantBotToken:     "YOUR_BOT_TOKEN_HERE", // default from default-config.yml
-			wantCPUThreshold: 85.0,                  // default
+			wantPollInterval: 15,
+			wantBotToken:     "YOUR_BOT_TOKEN_HERE",
+			wantCPUThreshold: 85.0,
 		},
 		{
-			name:             "Partial user config",
+			name:             "Partial user config — new nested format",
 			userConfigYAML:   "poll_interval_seconds: 30\nbot_token: \"user_token\"",
-			wantPollInterval: 30,           // overridden
-			wantBotToken:     "user_token", // overridden
-			wantCPUThreshold: 85.0,         // preserved default
+			wantPollInterval: 30,
+			wantBotToken:     "user_token",
+			wantCPUThreshold: 85.0, // default preserved
 		},
 		{
-			name:             "Full user config",
-			userConfigYAML:   "poll_interval_seconds: 60\nbot_token: \"full_user_token\"\ncpu_threshold_percent: 90.0",
-			wantPollInterval: 60,                // overridden
-			wantBotToken:     "full_user_token", // overridden
-			wantCPUThreshold: 90.0,              // overridden
+			name: "Full user config — new nested format",
+			userConfigYAML: `poll_interval_seconds: 60
+bot_token: "full_user_token"
+monitors:
+  cpu:
+    threshold_percent: 90.0`,
+			wantPollInterval: 60,
+			wantBotToken:     "full_user_token",
+			wantCPUThreshold: 90.0,
+		},
+		{
+			name:             "Legacy flat key — cpu_threshold_percent migrated",
+			userConfigYAML:   "cpu_threshold_percent: 92.0",
+			wantPollInterval: 15,
+			wantBotToken:     "YOUR_BOT_TOKEN_HERE",
+			wantCPUThreshold: 92.0, // migrated from legacy key
 		},
 	}
 
@@ -409,8 +433,146 @@ func Test_Load_WithMerging(t *testing.T) {
 			if cfg.BotToken != tt.wantBotToken {
 				t.Errorf("BotToken = %v, want %v", cfg.BotToken, tt.wantBotToken)
 			}
-			if cfg.CPUThresholdPercent != tt.wantCPUThreshold {
-				t.Errorf("CPUThresholdPercent = %v, want %v", cfg.CPUThresholdPercent, tt.wantCPUThreshold)
+			if cfg.Monitors.CPU.ThresholdPercent != tt.wantCPUThreshold {
+				t.Errorf("Monitors.CPU.ThresholdPercent = %v, want %v", cfg.Monitors.CPU.ThresholdPercent, tt.wantCPUThreshold)
+			}
+		})
+	}
+}
+
+func Test_Load_LegacyFlatKeys(t *testing.T) {
+	tmpDir := t.TempDir()
+	tmpFile := filepath.Join(tmpDir, "config.yml")
+
+	old := GetConfigPath
+	GetConfigPath = func() (string, error) { return tmpFile, nil }
+	defer func() { GetConfigPath = old }()
+
+	t.Run("All legacy flat threshold keys are migrated", func(t *testing.T) {
+		yaml := `cpu_threshold_percent: 88.0
+cpu_recovery_percent: 72.0
+cpu_sustain_seconds: 400
+mem_threshold_percent: 91.0
+mem_recovery_percent: 81.0
+mem_sustain_seconds: 200
+swap_threshold_percent: 30.0
+swap_recovery_percent: 12.0
+swap_sustain_seconds: 200
+disk_threshold_percent: 96.0
+disk_recovery_percent: 91.0
+load1_warning: 3.0
+load1_critical: 5.0
+load5_warning: 2.0
+load5_critical: 4.0
+load15_warning: 1.5
+load15_critical: 3.0
+`
+		if err := os.WriteFile(tmpFile, []byte(yaml), 0644); err != nil {
+			t.Fatal(err)
+		}
+		cfg, err := Load()
+		if err != nil {
+			t.Fatalf("Load() error = %v", err)
+		}
+		m := cfg.Monitors
+		checks := map[string][2]float64{
+			"CPU.ThresholdPercent":    {m.CPU.ThresholdPercent, 88.0},
+			"CPU.RecoveryPercent":     {m.CPU.RecoveryPercent, 72.0},
+			"Memory.ThresholdPercent": {m.Memory.ThresholdPercent, 91.0},
+			"Memory.RecoveryPercent":  {m.Memory.RecoveryPercent, 81.0},
+			"Swap.ThresholdPercent":   {m.Swap.ThresholdPercent, 30.0},
+			"Swap.RecoveryPercent":    {m.Swap.RecoveryPercent, 12.0},
+			"Disk.ThresholdPercent":   {m.Disk.ThresholdPercent, 96.0},
+			"Disk.RecoveryPercent":    {m.Disk.RecoveryPercent, 91.0},
+			"Load1.Warning":           {m.Load.Load1.Warning, 3.0},
+			"Load1.Critical":          {m.Load.Load1.Critical, 5.0},
+			"Load5.Warning":           {m.Load.Load5.Warning, 2.0},
+			"Load5.Critical":          {m.Load.Load5.Critical, 4.0},
+			"Load15.Warning":          {m.Load.Load15.Warning, 1.5},
+			"Load15.Critical":         {m.Load.Load15.Critical, 3.0},
+		}
+		for name, pair := range checks {
+			if pair[0] != pair[1] {
+				t.Errorf("%s = %v, want %v", name, pair[0], pair[1])
+			}
+		}
+		if m.CPU.SustainSeconds != 400 {
+			t.Errorf("CPU.SustainSeconds = %v, want 400", m.CPU.SustainSeconds)
+		}
+	})
+
+	t.Run("New nested key wins over legacy flat key", func(t *testing.T) {
+		// Both cpu_threshold_percent (legacy) and monitors.cpu.threshold_percent (new) set.
+		// New value (99.0) should win.
+		yaml := `cpu_threshold_percent: 88.0
+monitors:
+  cpu:
+    threshold_percent: 99.0
+`
+		os.Remove(tmpFile)
+		if err := os.WriteFile(tmpFile, []byte(yaml), 0644); err != nil {
+			t.Fatal(err)
+		}
+		cfg, err := Load()
+		if err != nil {
+			t.Fatalf("Load() error = %v", err)
+		}
+		if cfg.Monitors.CPU.ThresholdPercent != 99.0 {
+			t.Errorf("CPU.ThresholdPercent = %v, want 99.0 (new key should win)", cfg.Monitors.CPU.ThresholdPercent)
+		}
+	})
+}
+
+func Test_warnDeprecatedKeys(t *testing.T) {
+	tests := []struct {
+		name      string
+		raw       map[string]interface{}
+		wantCount int // expected number of deprecation lines on stderr
+	}{
+		{
+			name:      "No deprecated keys",
+			raw:       map[string]interface{}{"bot_token": "x", "monitors": map[string]interface{}{}},
+			wantCount: 0,
+		},
+		{
+			name:      "One deprecated key",
+			raw:       map[string]interface{}{"cpu_threshold_percent": 85.0},
+			wantCount: 1,
+		},
+		{
+			name: "Multiple deprecated keys",
+			raw: map[string]interface{}{
+				"cpu_threshold_percent": 85.0,
+				"mem_threshold_percent": 90.0,
+				"load1_warning":         2.0,
+			},
+			wantCount: 3,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Redirect stderr to a pipe to count warnings
+			oldStderr := os.Stderr
+			r, w, err := os.Pipe()
+			if err != nil {
+				t.Fatal(err)
+			}
+			os.Stderr = w
+
+			warnDeprecatedKeys(tt.raw)
+
+			w.Close()
+			os.Stderr = oldStderr
+
+			buf := make([]byte, 4096)
+			n, _ := r.Read(buf)
+			output := string(buf[:n])
+
+			// Each warning line starts with "[config] deprecated:"; count those lines.
+			count := strings.Count(output, "[config] deprecated:")
+			if count != tt.wantCount {
+				t.Errorf("got %d deprecation warning(s), want %d\noutput: %q", count, tt.wantCount, output)
 			}
 		})
 	}

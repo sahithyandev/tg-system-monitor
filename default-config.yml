@@ -5,7 +5,7 @@
 bot_token: "YOUR_BOT_TOKEN_HERE"
 
 # Optional: Hash of password for users to join the bot
-# DO NOT EDIT MANUALLY. USE `set-password` TO DO SO. 
+# DO NOT EDIT MANUALLY. USE `set-password` TO DO SO.
 join_password_hash: ""
 
 # Optional: Override hostname detection
@@ -13,36 +13,6 @@ hostname_override: ""
 
 # Optional: How often to poll for system metrics (seconds)
 poll_interval_seconds: 15
-
-# CPU monitoring thresholds
-cpu_threshold_percent: 85.0
-cpu_recovery_percent: 70.0
-cpu_sustain_seconds: 300
-
-# Memory monitoring thresholds  
-mem_threshold_percent: 90.0
-mem_recovery_percent: 80.0
-mem_sustain_seconds: 180
-
-# Swap monitoring thresholds
-swap_threshold_percent: 25.0
-swap_recovery_percent: 10.0
-swap_sustain_seconds: 180
-
-# Disk monitoring thresholds
-disk_threshold_percent: 95.0
-disk_recovery_percent: 90.0
-
-# Load monitoring thresholds
-load1_warning: 2.0
-load1_critical: 4.0
-load5_warning: 1.5
-load5_critical: 3.0
-load15_warning: 1.0
-load15_critical: 2.0
-
-# Detection hysteresis to prevent flapping (percent)
-hysteresis: 5.0
 
 # Alert settings
 alert_cooldown_seconds: 1800
@@ -54,11 +24,47 @@ db_path: "~/.config/tg-system-monitor/tgsm.db"
 # Data retention
 data_retention_days: 30
 
-# Additional data volumes to monitor (mounted data disks, databases, etc).
-# Each volume is shown in /status and raises Telegram alerts when above threshold.
-# threshold_percent and recovery_percent default to disk_threshold_percent /
-# disk_recovery_percent above if omitted.
-# volumes:
-#   - path: /data
-#     threshold_percent: 95.0
-#     recovery_percent: 90.0
+# Detection hysteresis to prevent flapping (percent)
+hysteresis: 5.0
+
+# Per-metric monitoring thresholds.
+# threshold_percent triggers a critical alert; recovery_percent marks recovery.
+# sustain_seconds requires the threshold to be exceeded for this long before alerting.
+monitors:
+  cpu:
+    threshold_percent: 85.0
+    recovery_percent: 70.0
+    sustain_seconds: 300
+
+  memory:
+    threshold_percent: 90.0
+    recovery_percent: 80.0
+    sustain_seconds: 180
+
+  swap:
+    threshold_percent: 25.0
+    recovery_percent: 10.0
+    sustain_seconds: 180
+
+  disk:
+    threshold_percent: 95.0
+    recovery_percent: 90.0
+    # Additional data volumes to monitor (mounted data disks, databases, etc).
+    # Each volume is shown in /status and raises Telegram alerts when above threshold.
+    # threshold_percent and recovery_percent default to monitors.disk values if omitted.
+    # volumes:
+    #   - path: /data
+    #     threshold_percent: 95.0
+    #     recovery_percent: 90.0
+
+  load:
+    load1:
+      warning: 2.0
+      critical: 4.0
+    load5:
+      warning: 1.5
+      critical: 3.0
+    load15:
+      warning: 1.0
+      critical: 2.0
+

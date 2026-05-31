@@ -33,77 +33,212 @@ func expandPath(path string) string {
 	return path
 }
 
+// VolumeConfig represents a single extra volume to monitor.
 type VolumeConfig struct {
 	Path             string  `yaml:"path"`
 	ThresholdPercent float64 `yaml:"threshold_percent"`
 	RecoveryPercent  float64 `yaml:"recovery_percent"`
 }
 
+// MetricThreshold holds alert thresholds for a single metric type.
+type MetricThreshold struct {
+	ThresholdPercent float64 `yaml:"threshold_percent"`
+	RecoveryPercent  float64 `yaml:"recovery_percent"`
+	SustainSeconds   int     `yaml:"sustain_seconds"`
+}
+
+// LoadLevel holds warning/critical levels for a single load-average window.
+type LoadLevel struct {
+	Warning  float64 `yaml:"warning"`
+	Critical float64 `yaml:"critical"`
+}
+
+// LoadConfig groups load-average thresholds for all three windows.
+type LoadConfig struct {
+	Load1  LoadLevel `yaml:"load1"`
+	Load5  LoadLevel `yaml:"load5"`
+	Load15 LoadLevel `yaml:"load15"`
+}
+
+// DiskConfig holds disk alert thresholds and extra volumes to monitor.
+type DiskConfig struct {
+	ThresholdPercent float64        `yaml:"threshold_percent"`
+	RecoveryPercent  float64        `yaml:"recovery_percent"`
+	Volumes          []VolumeConfig `yaml:"volumes"`
+}
+
+// MonitorsConfig holds all per-metric monitoring thresholds.
+type MonitorsConfig struct {
+	CPU    MetricThreshold `yaml:"cpu"`
+	Memory MetricThreshold `yaml:"memory"`
+	Swap   MetricThreshold `yaml:"swap"`
+	Disk   DiskConfig      `yaml:"disk"`
+	Load   LoadConfig      `yaml:"load"`
+}
+
+// Config is the canonical application configuration.
 type Config struct {
 	BotToken         string `yaml:"bot_token"`
 	JoinPasswordHash string `yaml:"join_password_hash"`
 	HostnameOverride string `yaml:"hostname_override"`
 	PollInterval     int    `yaml:"poll_interval_seconds"`
 
-	CPUThresholdPercent float64 `yaml:"cpu_threshold_percent"`
-	CPURecoveryPercent  float64 `yaml:"cpu_recovery_percent"`
-	CPUSustainSeconds   int     `yaml:"cpu_sustain_seconds"`
+	AlertCooldownSeconds int     `yaml:"alert_cooldown_seconds"`
+	TopProcessCount      int     `yaml:"top_process_count"`
+	DBPath               string  `yaml:"db_path"`
+	DataRetentionDays    int     `yaml:"data_retention_days"`
+	Hysteresis           float64 `yaml:"hysteresis"`
 
-	MemThresholdPercent float64 `yaml:"mem_threshold_percent"`
-	MemRecoveryPercent  float64 `yaml:"mem_recovery_percent"`
-	MemSustainSeconds   int     `yaml:"mem_sustain_seconds"`
+	Monitors MonitorsConfig `yaml:"monitors"`
+}
 
-	SwapThresholdPercent float64 `yaml:"swap_threshold_percent"`
-	SwapRecoveryPercent  float64 `yaml:"swap_recovery_percent"`
-	SwapSustainSeconds   int     `yaml:"swap_sustain_seconds"`
-
-	DiskThresholdPercent float64 `yaml:"disk_threshold_percent"`
-	DiskRecoveryPercent  float64 `yaml:"disk_recovery_percent"`
-
-	Load1Warning   float64 `yaml:"load1_warning"`
-	Load1Critical  float64 `yaml:"load1_critical"`
-	Load5Warning   float64 `yaml:"load5_warning"`
-	Load5Critical  float64 `yaml:"load5_critical"`
-	Load15Warning  float64 `yaml:"load15_warning"`
-	Load15Critical float64 `yaml:"load15_critical"`
-	Hysteresis     float64 `yaml:"hysteresis"`
-
-	AlertCooldownSeconds int    `yaml:"alert_cooldown_seconds"`
-	TopProcessCount      int    `yaml:"top_process_count"`
-	DBPath               string         `yaml:"db_path"`
-	DataRetentionDays    int            `yaml:"data_retention_days"`
+// legacyConfig captures the old flat threshold keys that have been moved under monitors.
+// Used only during loading to detect and migrate deprecated fields.
+type legacyConfig struct {
+	CPUThresholdPercent  float64        `yaml:"cpu_threshold_percent"`
+	CPURecoveryPercent   float64        `yaml:"cpu_recovery_percent"`
+	CPUSustainSeconds    int            `yaml:"cpu_sustain_seconds"`
+	MemThresholdPercent  float64        `yaml:"mem_threshold_percent"`
+	MemRecoveryPercent   float64        `yaml:"mem_recovery_percent"`
+	MemSustainSeconds    int            `yaml:"mem_sustain_seconds"`
+	SwapThresholdPercent float64        `yaml:"swap_threshold_percent"`
+	SwapRecoveryPercent  float64        `yaml:"swap_recovery_percent"`
+	SwapSustainSeconds   int            `yaml:"swap_sustain_seconds"`
+	DiskThresholdPercent float64        `yaml:"disk_threshold_percent"`
+	DiskRecoveryPercent  float64        `yaml:"disk_recovery_percent"`
+	Load1Warning         float64        `yaml:"load1_warning"`
+	Load1Critical        float64        `yaml:"load1_critical"`
+	Load5Warning         float64        `yaml:"load5_warning"`
+	Load5Critical        float64        `yaml:"load5_critical"`
+	Load15Warning        float64        `yaml:"load15_warning"`
+	Load15Critical       float64        `yaml:"load15_critical"`
 	Volumes              []VolumeConfig `yaml:"volumes"`
+}
+
+// deprecatedKeyMap maps each old flat key to its replacement path under monitors.
+var deprecatedKeyMap = []struct{ Old, New string }{
+	{"cpu_threshold_percent", "monitors.cpu.threshold_percent"},
+	{"cpu_recovery_percent", "monitors.cpu.recovery_percent"},
+	{"cpu_sustain_seconds", "monitors.cpu.sustain_seconds"},
+	{"mem_threshold_percent", "monitors.memory.threshold_percent"},
+	{"mem_recovery_percent", "monitors.memory.recovery_percent"},
+	{"mem_sustain_seconds", "monitors.memory.sustain_seconds"},
+	{"swap_threshold_percent", "monitors.swap.threshold_percent"},
+	{"swap_recovery_percent", "monitors.swap.recovery_percent"},
+	{"swap_sustain_seconds", "monitors.swap.sustain_seconds"},
+	{"disk_threshold_percent", "monitors.disk.threshold_percent"},
+	{"disk_recovery_percent", "monitors.disk.recovery_percent"},
+	{"load1_warning", "monitors.load.load1.warning"},
+	{"load1_critical", "monitors.load.load1.critical"},
+	{"load5_warning", "monitors.load.load5.warning"},
+	{"load5_critical", "monitors.load.load5.critical"},
+	{"load15_warning", "monitors.load.load15.warning"},
+	{"load15_critical", "monitors.load.load15.critical"},
+	{"volumes", "monitors.disk.volumes"},
+}
+
+// warnDeprecatedKeys prints a deprecation warning to stderr for each legacy key
+// present in raw. The probe is key-based to avoid the zero-value ambiguity in
+// struct-based unmarshalling.
+func warnDeprecatedKeys(raw map[string]interface{}) {
+	for _, entry := range deprecatedKeyMap {
+		if _, present := raw[entry.Old]; present {
+			fmt.Fprintln(os.Stderr, message.LogDeprecated(message.ComponentConfig, entry.Old, entry.New))
+		}
+	}
+}
+
+// applyLegacy folds non-zero legacy values into cfg.Monitors, but only when the
+// corresponding new nested field is still zero (new-format values win over deprecated ones).
+func applyLegacy(cfg *Config, legacy *legacyConfig) {
+	m := &cfg.Monitors
+
+	if legacy.CPUThresholdPercent != 0 && m.CPU.ThresholdPercent == 0 {
+		m.CPU.ThresholdPercent = legacy.CPUThresholdPercent
+	}
+	if legacy.CPURecoveryPercent != 0 && m.CPU.RecoveryPercent == 0 {
+		m.CPU.RecoveryPercent = legacy.CPURecoveryPercent
+	}
+	if legacy.CPUSustainSeconds != 0 && m.CPU.SustainSeconds == 0 {
+		m.CPU.SustainSeconds = legacy.CPUSustainSeconds
+	}
+	if legacy.MemThresholdPercent != 0 && m.Memory.ThresholdPercent == 0 {
+		m.Memory.ThresholdPercent = legacy.MemThresholdPercent
+	}
+	if legacy.MemRecoveryPercent != 0 && m.Memory.RecoveryPercent == 0 {
+		m.Memory.RecoveryPercent = legacy.MemRecoveryPercent
+	}
+	if legacy.MemSustainSeconds != 0 && m.Memory.SustainSeconds == 0 {
+		m.Memory.SustainSeconds = legacy.MemSustainSeconds
+	}
+	if legacy.SwapThresholdPercent != 0 && m.Swap.ThresholdPercent == 0 {
+		m.Swap.ThresholdPercent = legacy.SwapThresholdPercent
+	}
+	if legacy.SwapRecoveryPercent != 0 && m.Swap.RecoveryPercent == 0 {
+		m.Swap.RecoveryPercent = legacy.SwapRecoveryPercent
+	}
+	if legacy.SwapSustainSeconds != 0 && m.Swap.SustainSeconds == 0 {
+		m.Swap.SustainSeconds = legacy.SwapSustainSeconds
+	}
+	if legacy.DiskThresholdPercent != 0 && m.Disk.ThresholdPercent == 0 {
+		m.Disk.ThresholdPercent = legacy.DiskThresholdPercent
+	}
+	if legacy.DiskRecoveryPercent != 0 && m.Disk.RecoveryPercent == 0 {
+		m.Disk.RecoveryPercent = legacy.DiskRecoveryPercent
+	}
+	if len(legacy.Volumes) > 0 && len(m.Disk.Volumes) == 0 {
+		m.Disk.Volumes = legacy.Volumes
+	}
+	if legacy.Load1Warning != 0 && m.Load.Load1.Warning == 0 {
+		m.Load.Load1.Warning = legacy.Load1Warning
+	}
+	if legacy.Load1Critical != 0 && m.Load.Load1.Critical == 0 {
+		m.Load.Load1.Critical = legacy.Load1Critical
+	}
+	if legacy.Load5Warning != 0 && m.Load.Load5.Warning == 0 {
+		m.Load.Load5.Warning = legacy.Load5Warning
+	}
+	if legacy.Load5Critical != 0 && m.Load.Load5.Critical == 0 {
+		m.Load.Load5.Critical = legacy.Load5Critical
+	}
+	if legacy.Load15Warning != 0 && m.Load.Load15.Warning == 0 {
+		m.Load.Load15.Warning = legacy.Load15Warning
+	}
+	if legacy.Load15Critical != 0 && m.Load.Load15.Critical == 0 {
+		m.Load.Load15.Critical = legacy.Load15Critical
+	}
 }
 
 func (c *Config) PrintThresholds() {
 	fmt.Printf("%s\n", msg.StatusTemplate("System Monitor Configuration", "Active", "Thresholds and settings loaded successfully"))
 	fmt.Println("==========================")
 
+	m := c.Monitors
 	fmt.Printf("CPU     | Warning: %.1f%% | Critical: %.1f%% | Sustain: %d seconds\n",
-		c.CPURecoveryPercent, c.CPUThresholdPercent, c.CPUSustainSeconds)
+		m.CPU.RecoveryPercent, m.CPU.ThresholdPercent, m.CPU.SustainSeconds)
 	fmt.Printf("Memory  | Warning: %.1f%% | Critical: %.1f%% | Sustain: %d seconds\n",
-		c.MemRecoveryPercent, c.MemThresholdPercent, c.MemSustainSeconds)
+		m.Memory.RecoveryPercent, m.Memory.ThresholdPercent, m.Memory.SustainSeconds)
 	fmt.Printf("Swap    | Warning: %.1f%% | Critical: %.1f%% | Sustain: %d seconds\n",
-		c.SwapRecoveryPercent, c.SwapThresholdPercent, c.SwapSustainSeconds)
+		m.Swap.RecoveryPercent, m.Swap.ThresholdPercent, m.Swap.SustainSeconds)
 	fmt.Printf("Disk    | Warning: %.1f%% | Critical: %.1f%% | Sustain: - seconds\n",
-		c.DiskRecoveryPercent, c.DiskThresholdPercent)
+		m.Disk.RecoveryPercent, m.Disk.ThresholdPercent)
 	fmt.Printf("Load1   | Warning: %.1f | Critical: %.1f\n",
-		c.Load1Warning, c.Load1Critical)
+		m.Load.Load1.Warning, m.Load.Load1.Critical)
 	fmt.Printf("Load5   | Warning: %.1f | Critical: %.1f\n",
-		c.Load5Warning, c.Load5Critical)
+		m.Load.Load5.Warning, m.Load.Load5.Critical)
 	fmt.Printf("Load15  | Warning: %.1f | Critical: %.1f\n",
-		c.Load15Warning, c.Load15Critical)
+		m.Load.Load15.Warning, m.Load.Load15.Critical)
 	fmt.Printf("Hysteresis: %.1f%%\n", c.Hysteresis)
-	if len(c.Volumes) > 0 {
+	if len(m.Disk.Volumes) > 0 {
 		fmt.Println("Additional volumes:")
-		for _, v := range c.Volumes {
+		for _, v := range m.Disk.Volumes {
 			threshold := v.ThresholdPercent
 			if threshold == 0 {
-				threshold = c.DiskThresholdPercent
+				threshold = m.Disk.ThresholdPercent
 			}
 			recovery := v.RecoveryPercent
 			if recovery == 0 {
-				recovery = c.DiskRecoveryPercent
+				recovery = m.Disk.RecoveryPercent
 			}
 			fmt.Printf("  %-20s | Warning: %.1f%% | Critical: %.1f%%\n", v.Path, recovery, threshold)
 		}
@@ -142,8 +277,66 @@ var GetConfigPath = func() (string, error) {
 	return filepath.Join(appDir, "config.yml"), nil
 }
 
-// mergeConfigs merges user configuration on top of default configuration
-// User config values take priority over default values
+// mergeMonitors merges non-zero user values on top of default values for monitors.
+func mergeMonitors(dst, src *MonitorsConfig) {
+	if src.CPU.ThresholdPercent != 0 {
+		dst.CPU.ThresholdPercent = src.CPU.ThresholdPercent
+	}
+	if src.CPU.RecoveryPercent != 0 {
+		dst.CPU.RecoveryPercent = src.CPU.RecoveryPercent
+	}
+	if src.CPU.SustainSeconds != 0 {
+		dst.CPU.SustainSeconds = src.CPU.SustainSeconds
+	}
+	if src.Memory.ThresholdPercent != 0 {
+		dst.Memory.ThresholdPercent = src.Memory.ThresholdPercent
+	}
+	if src.Memory.RecoveryPercent != 0 {
+		dst.Memory.RecoveryPercent = src.Memory.RecoveryPercent
+	}
+	if src.Memory.SustainSeconds != 0 {
+		dst.Memory.SustainSeconds = src.Memory.SustainSeconds
+	}
+	if src.Swap.ThresholdPercent != 0 {
+		dst.Swap.ThresholdPercent = src.Swap.ThresholdPercent
+	}
+	if src.Swap.RecoveryPercent != 0 {
+		dst.Swap.RecoveryPercent = src.Swap.RecoveryPercent
+	}
+	if src.Swap.SustainSeconds != 0 {
+		dst.Swap.SustainSeconds = src.Swap.SustainSeconds
+	}
+	if src.Disk.ThresholdPercent != 0 {
+		dst.Disk.ThresholdPercent = src.Disk.ThresholdPercent
+	}
+	if src.Disk.RecoveryPercent != 0 {
+		dst.Disk.RecoveryPercent = src.Disk.RecoveryPercent
+	}
+	if len(src.Disk.Volumes) > 0 {
+		dst.Disk.Volumes = src.Disk.Volumes
+	}
+	if src.Load.Load1.Warning != 0 {
+		dst.Load.Load1.Warning = src.Load.Load1.Warning
+	}
+	if src.Load.Load1.Critical != 0 {
+		dst.Load.Load1.Critical = src.Load.Load1.Critical
+	}
+	if src.Load.Load5.Warning != 0 {
+		dst.Load.Load5.Warning = src.Load.Load5.Warning
+	}
+	if src.Load.Load5.Critical != 0 {
+		dst.Load.Load5.Critical = src.Load.Load5.Critical
+	}
+	if src.Load.Load15.Warning != 0 {
+		dst.Load.Load15.Warning = src.Load.Load15.Warning
+	}
+	if src.Load.Load15.Critical != 0 {
+		dst.Load.Load15.Critical = src.Load.Load15.Critical
+	}
+}
+
+// mergeConfigs merges user configuration on top of default configuration.
+// User config values take priority over default values.
 func mergeConfigs(defaultConfig, userConfig *Config) *Config {
 	if userConfig == nil {
 		return defaultConfig
@@ -164,60 +357,6 @@ func mergeConfigs(defaultConfig, userConfig *Config) *Config {
 	if userConfig.PollInterval != 0 {
 		merged.PollInterval = userConfig.PollInterval
 	}
-	if userConfig.CPUThresholdPercent != 0 {
-		merged.CPUThresholdPercent = userConfig.CPUThresholdPercent
-	}
-	if userConfig.CPURecoveryPercent != 0 {
-		merged.CPURecoveryPercent = userConfig.CPURecoveryPercent
-	}
-	if userConfig.CPUSustainSeconds != 0 {
-		merged.CPUSustainSeconds = userConfig.CPUSustainSeconds
-	}
-	if userConfig.MemThresholdPercent != 0 {
-		merged.MemThresholdPercent = userConfig.MemThresholdPercent
-	}
-	if userConfig.MemRecoveryPercent != 0 {
-		merged.MemRecoveryPercent = userConfig.MemRecoveryPercent
-	}
-	if userConfig.MemSustainSeconds != 0 {
-		merged.MemSustainSeconds = userConfig.MemSustainSeconds
-	}
-	if userConfig.SwapThresholdPercent != 0 {
-		merged.SwapThresholdPercent = userConfig.SwapThresholdPercent
-	}
-	if userConfig.SwapRecoveryPercent != 0 {
-		merged.SwapRecoveryPercent = userConfig.SwapRecoveryPercent
-	}
-	if userConfig.SwapSustainSeconds != 0 {
-		merged.SwapSustainSeconds = userConfig.SwapSustainSeconds
-	}
-	if userConfig.DiskThresholdPercent != 0 {
-		merged.DiskThresholdPercent = userConfig.DiskThresholdPercent
-	}
-	if userConfig.DiskRecoveryPercent != 0 {
-		merged.DiskRecoveryPercent = userConfig.DiskRecoveryPercent
-	}
-	if userConfig.Load1Warning != 0 {
-		merged.Load1Warning = userConfig.Load1Warning
-	}
-	if userConfig.Load1Critical != 0 {
-		merged.Load1Critical = userConfig.Load1Critical
-	}
-	if userConfig.Load5Warning != 0 {
-		merged.Load5Warning = userConfig.Load5Warning
-	}
-	if userConfig.Load5Critical != 0 {
-		merged.Load5Critical = userConfig.Load5Critical
-	}
-	if userConfig.Load15Warning != 0 {
-		merged.Load15Warning = userConfig.Load15Warning
-	}
-	if userConfig.Load15Critical != 0 {
-		merged.Load15Critical = userConfig.Load15Critical
-	}
-	if userConfig.Hysteresis != 0 {
-		merged.Hysteresis = userConfig.Hysteresis
-	}
 	if userConfig.AlertCooldownSeconds != 0 {
 		merged.AlertCooldownSeconds = userConfig.AlertCooldownSeconds
 	}
@@ -230,9 +369,11 @@ func mergeConfigs(defaultConfig, userConfig *Config) *Config {
 	if userConfig.DataRetentionDays != 0 {
 		merged.DataRetentionDays = userConfig.DataRetentionDays
 	}
-	if len(userConfig.Volumes) > 0 {
-		merged.Volumes = userConfig.Volumes
+	if userConfig.Hysteresis != 0 {
+		merged.Hysteresis = userConfig.Hysteresis
 	}
+
+	mergeMonitors(&merged.Monitors, &userConfig.Monitors)
 
 	return &merged
 }
@@ -267,6 +408,18 @@ func Load() (*Config, error) {
 	var userConfig Config
 	if err := yaml.Unmarshal(data, &userConfig); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal user config: %w", err)
+	}
+
+	// Detect and warn about deprecated flat keys (key-based probe avoids zero-value ambiguity)
+	var raw map[string]interface{}
+	if err := yaml.Unmarshal(data, &raw); err == nil {
+		warnDeprecatedKeys(raw)
+	}
+
+	// Migrate deprecated flat values into monitors; new-format values win
+	var legacy legacyConfig
+	if err := yaml.Unmarshal(data, &legacy); err == nil {
+		applyLegacy(&userConfig, &legacy)
 	}
 
 	// Merge user config with defaults
