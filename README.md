@@ -191,6 +191,21 @@ The automated release process:
 - Produces `.deb` and `.rpm` packages for Linux
 - Generates a GitHub release with all assets and a `checksums.txt`
 
+### Versioning
+
+This project follows [Semantic Versioning](https://semver.org/) (`MAJOR.MINOR.PATCH`) after v2.0.0.
+
+Here are the rules followed:
+- **Does this break anything for existing users?**   
+   If yes, bump **MAJOR** and reset MINOR and PATCH to 0.  
+   Examples: Renamed or removed config keys, changed database schema requiring migration, dropped distro/arch support.
+- **Does this add anything a user can see or use?**   
+   If yes, bump **MINOR** and reset PATCH to 0.   
+   Examples: New Telegram command, new optional config field, new metric being monitored.
+- **Otherwise**   
+   Bump **PATCH**.   
+   Examples: Bug fix, internal refactor, CI/workflow change, documentation update.
+
 ### GoReleaser Configuration
 
 The project uses GoReleaser for consistent cross-platform builds. The configuration is defined in `.goreleaser.yml`.
