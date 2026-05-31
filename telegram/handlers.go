@@ -11,26 +11,6 @@ import (
 	"github.com/PaulSonOfLars/gotgbot/v2/ext"
 )
 
-// echoHandler handles text messages by echoing them back
-func echoHandler(b *gotgbot.Bot, ctx *ext.Context) error {
-	message := ctx.EffectiveMessage
-	if message == nil {
-		return nil
-	}
-
-	fmt.Println(msg.LogCompleted(msg.ComponentBot, fmt.Sprintf("message received from %s (@%s): %s", message.From.FirstName, message.From.Username, message.Text)))
-
-	// Echo the message back
-	_, err := message.Reply(b, fmt.Sprintf("Echo: %s", message.Text), nil)
-	if err != nil {
-		fmt.Println(msg.LogFailed(msg.ComponentBot, "echo reply", err.Error()))
-		return err
-	}
-
-	fmt.Println(msg.LogCompleted(msg.ComponentBot, fmt.Sprintf("echo reply sent to %s", message.From.FirstName)))
-	return nil
-}
-
 // pingHandler handles /ping command
 func pingHandler(database *db.DB, getLastMetricTime func() time.Time) func(b *gotgbot.Bot, ctx *ext.Context) error {
 	return func(b *gotgbot.Bot, ctx *ext.Context) error {

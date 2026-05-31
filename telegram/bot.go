@@ -18,7 +18,6 @@ import (
 	"github.com/PaulSonOfLars/gotgbot/v2"
 	"github.com/PaulSonOfLars/gotgbot/v2/ext"
 	"github.com/PaulSonOfLars/gotgbot/v2/ext/handlers"
-	"github.com/PaulSonOfLars/gotgbot/v2/ext/handlers/filters/message"
 )
 
 type Bot struct {
@@ -83,9 +82,6 @@ func New(cfg *config.Config, database *db.DB) (*Bot, error) {
 
 	// Register help command handler
 	dispatcher.AddHandler(handlers.NewCommand("help", helpHandler()))
-
-	// Register echo handler for all text messages
-	dispatcher.AddHandler(handlers.NewMessage(message.Text, echoHandler))
 
 	return b, nil
 }
