@@ -62,7 +62,7 @@ func TestFormatStatus(t *testing.T) {
 		Load15:      0.88,
 	}
 
-	result := FormatStatus(sample)
+	result := FormatStatus(sample, nil)
 
 	expectedParts := []string{
 		"Uptime: 01h 01m 01s",
