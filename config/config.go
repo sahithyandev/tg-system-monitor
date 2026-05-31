@@ -43,6 +43,7 @@ type VolumeConfig struct {
 type MetricThreshold struct {
 	ThresholdPercent float64 `yaml:"threshold_percent"`
 	RecoveryPercent  float64 `yaml:"recovery_percent"`
+	SustainSeconds   int     `yaml:"sustain_seconds"`
 }
 
 // LoadLevel holds warning/critical levels for a single load-average window.
