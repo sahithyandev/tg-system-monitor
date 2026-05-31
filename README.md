@@ -41,18 +41,18 @@ place it at `/usr/bin/tgsm`, and follow the post-install steps below manually
 
 After installation via any method:
 
-1. **Edit the config** — add your Telegram bot token:
+1. **Edit the config**:
    ```
    /var/lib/tgsm/.config/tg-system-monitor/config.yml
    ```
-   Set `bot_token` to the token you got from [@BotFather](https://t.me/botfather).
+   - To enable the Telegram bot, set `bot_token` to the token you got from [@BotFather](https://t.me/botfather). If omitted, the monitor runs in collector-only mode — metrics are still collected and stored, but no Telegram bot or alerts are active.
 
-2. **Set the join password** (the password users type to authenticate with the bot):
+2. **Set the join password** (the password users type to authenticate with the bot — only needed if using the Telegram bot):
    ```sh
    sudo -u tgsm HOME=/var/lib/tgsm tgsm set-password
    ```
 
-3. **Start the service** (it is enabled on boot but not auto-started, to avoid a crash-loop before the token is configured):
+3. **Start the service**:
    ```sh
    sudo systemctl start tgsm
    sudo journalctl -u tgsm -f   # tail the logs
@@ -152,6 +152,7 @@ The detection engine uses a multi-layered approach for intelligent alerting:
 
 The bot uses a YAML configuration file located at `~/.config/tg-system-monitor/config.yml`. Key settings include:
 
+- `bot_token`: Telegram bot token (optional — omit to run in collector-only mode without Telegram or alerts)
 - `poll_interval_seconds`: Metrics collection interval
 - `cpu_threshold_percent`: CPU critical threshold
 - `mem_threshold_percent`: Memory critical threshold  

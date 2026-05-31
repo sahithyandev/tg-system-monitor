@@ -1,8 +1,8 @@
 # Copy this file to ~/.config/tg-system-monitor/config.yml
-# Replace YOUR_BOT_TOKEN with your actual Telegram bot token
 
-# Required: Get from @BotFather on Telegram
-bot_token: "YOUR_BOT_TOKEN_HERE"
+# Optional: Get from @BotFather on Telegram.
+# If omitted, the monitor runs in collector-only mode (no Telegram bot or alerts).
+bot_token: ""
 
 # Optional: Hash of password for users to join the bot
 # DO NOT EDIT MANUALLY. USE `set-password` TO DO SO.

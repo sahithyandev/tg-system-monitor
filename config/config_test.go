@@ -373,14 +373,14 @@ func Test_Load_WithMerging(t *testing.T) {
 			name:             "No user config file",
 			userConfigYAML:   "",
 			wantPollInterval: 15,
-			wantBotToken:     "YOUR_BOT_TOKEN_HERE",
+			wantBotToken:     "",
 			wantCPUThreshold: 85.0,
 		},
 		{
 			name:             "Empty user config file",
 			userConfigYAML:   "",
 			wantPollInterval: 15,
-			wantBotToken:     "YOUR_BOT_TOKEN_HERE",
+			wantBotToken:     "",
 			wantCPUThreshold: 85.0,
 		},
 		{
@@ -405,7 +405,7 @@ monitors:
 			name:             "Legacy flat key — cpu_threshold_percent migrated",
 			userConfigYAML:   "cpu_threshold_percent: 92.0",
 			wantPollInterval: 15,
-			wantBotToken:     "YOUR_BOT_TOKEN_HERE",
+			wantBotToken:     "",
 			wantCPUThreshold: 92.0, // migrated from legacy key
 		},
 	}

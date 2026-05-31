@@ -123,9 +123,8 @@ func runMonitor() {
 	// Display the finalized thresholds
 	cfg.PrintThresholds()
 
-	// Validate bot token
 	if cfg.BotToken == "" {
-		log.Fatal(message.BotTokenRequired)
+		log.Printf("%s", message.LogDisabled(message.ComponentBot, "bot_token not configured; running in collector-only mode"))
 	}
 
 	var volumePaths []string
@@ -195,30 +194,30 @@ func runMonitor() {
 	}
 	detector := detection.NewDetectionEngine(database, detectionConfig)
 
-	// Initialize telegram bot
-	fmt.Printf("%s\n", message.LogStarted(message.ComponentBot, "telegram bot"))
-	tgBot, err := telegram.New(cfg, database)
-	if err != nil {
-		log.Fatalf("%s", message.LogFailed(message.ComponentBot, "initialization", err.Error()))
-	}
-
-	// Initialize alert sender
-	alertSender := alert.NewSender(database, tgBot, 30*time.Second) // 30 second interval
-
 	// Create context for graceful shutdown
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// Start telegram bot
-	if err := tgBot.Start(ctx); err != nil {
-		log.Fatalf("%s", message.LogFailed(message.ComponentBot, "startup", err.Error()))
+	// Initialize telegram bot (optional)
+	var tgBot *telegram.Bot
+	if cfg.BotToken != "" {
+		fmt.Printf("%s\n", message.LogStarted(message.ComponentBot, "telegram bot"))
+		tgBot, err = telegram.New(cfg, database)
+		if err != nil {
+			log.Fatalf("%s", message.LogFailed(message.ComponentBot, "initialization", err.Error()))
+		}
+
+		if err := tgBot.Start(ctx); err != nil {
+			log.Fatalf("%s", message.LogFailed(message.ComponentBot, "startup", err.Error()))
+		}
+
+		// Initialize and start alert sender
+		alertSender := alert.NewSender(database, tgBot, 30*time.Second)
+		fmt.Printf("%s\n", message.LogStarted(message.ComponentAlert, "alert sender (30s interval)"))
+		go alertSender.Start(ctx)
 	}
 
 	fmt.Printf("%s\n", message.LogStarted(message.ComponentMetrics, fmt.Sprintf("metrics collection (interval: %ds)", cfg.PollInterval)))
-	fmt.Printf("%s\n", message.LogStarted(message.ComponentAlert, "alert sender (30s interval)"))
-
-	// Start alert sender in separate goroutine
-	go alertSender.Start(ctx)
 
 	// Start data retention goroutine
 	go func() {
@@ -273,7 +272,9 @@ func runMonitor() {
 			}
 
 			// Update last metric time in bot
-			tgBot.UpdateLastMetricTime(sample.Timestamp)
+			if tgBot != nil {
+				tgBot.UpdateLastMetricTime(sample.Timestamp)
+			}
 
 			msg := message.LogCompleted(message.ComponentMetrics, fmt.Sprintf("saved metric sample. CPU: %.2f%%, Mem: %.2f%%, Disk: %.2f%%",
 				sample.CPUPercent, sample.MemPercent, sample.DiskPercent))
@@ -297,6 +298,8 @@ func runMonitor() {
 	cancel()
 
 	// Stop telegram bot
-	tgBot.Stop()
+	if tgBot != nil {
+		tgBot.Stop()
+	}
 	fmt.Println("Shutdown complete")
 }
