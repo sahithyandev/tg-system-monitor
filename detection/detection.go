@@ -276,21 +276,22 @@ func (d *DetectionEngine) evaluateDerivedAlerts(samples []*metrics.MetricSample)
 
 	// CPU sustained high alert
 	if d.isSustainedHigh(samples, func(s *metrics.MetricSample) float64 { return s.CPUPercent }, d.config.CPU.Critical) {
-		message := fmt.Sprintf("CPU sustained high: %.2f for %d seconds", latest.CPUPercent, d.config.WindowSecs)
-		d.db.StoreAlert(string(CPUHigh), string(Critical), latest.CPUPercent, d.config.CPU.Critical, message, "triggered", time.Unix(now, 0))
+		d.checkAndStoreAlert("cpu_high_critical", CPUHigh, Critical, latest.CPUPercent, d.config.CPU.Critical, now)
+	} else {
+		d.checkAndStoreRecovery("cpu_high_critical", CPUHigh, Critical, latest.CPUPercent, d.config.CPU.Critical, now)
 	}
 
 	// Memory sustained high alert
 	if d.isSustainedHigh(samples, func(s *metrics.MetricSample) float64 { return s.MemPercent }, d.config.Memory.Critical) {
-		message := fmt.Sprintf("Memory sustained high: %.2f for %d seconds", latest.MemPercent, d.config.WindowSecs)
-		d.db.StoreAlert(string(MemoryHigh), string(Critical), latest.MemPercent, d.config.Memory.Critical, message, "triggered", time.Unix(now, 0))
+		d.checkAndStoreAlert("memory_high_critical", MemoryHigh, Critical, latest.MemPercent, d.config.Memory.Critical, now)
+	} else {
+		d.checkAndStoreRecovery("memory_high_critical", MemoryHigh, Critical, latest.MemPercent, d.config.Memory.Critical, now)
 	}
 
 	// Load spike detection
 	loadIncrease := latest.Load1 - previous.Load1
 	if loadIncrease >= 2.0 && latest.Load1 >= d.config.Load1.Warning {
-		message := fmt.Sprintf("Load spike: %.2f -> %.2f (+%.2f)", previous.Load1, latest.Load1, loadIncrease)
-		d.db.StoreAlert(string(LoadSpike), string(Warning), latest.Load1, previous.Load1, message, "triggered", time.Unix(now, 0))
+		d.checkAndStoreAlert("load_spike_warning", LoadSpike, Warning, latest.Load1, previous.Load1, now)
 	}
 
 	// Resource pressure (multiple metrics high)
@@ -306,9 +307,9 @@ func (d *DetectionEngine) evaluateDerivedAlerts(samples []*metrics.MetricSample)
 	}
 
 	if pressureCount >= 2 {
-		message := fmt.Sprintf("Resource pressure: %d metrics above threshold (CPU: %.1f%%, Memory: %.1f%%, Disk: %.1f%%)",
-			pressureCount, latest.CPUPercent, latest.MemPercent, latest.DiskPercent)
-		d.db.StoreAlert(string(ResourceLow), string(Warning), float64(pressureCount), 2.0, message, "triggered", time.Unix(now, 0))
+		d.checkAndStoreAlert("resource_low_warning", ResourceLow, Warning, float64(pressureCount), 2.0, now)
+	} else {
+		d.checkAndStoreRecovery("resource_low_warning", ResourceLow, Warning, float64(pressureCount), 2.0, now)
 	}
 }
 
