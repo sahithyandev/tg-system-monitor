@@ -134,8 +134,6 @@ func helpHandler() func(b *gotgbot.Bot, ctx *ext.Context) error {
 📊 *Authenticated Commands:*
 /status - Show system metrics
 /alerts <on|off> - Toggle alert notifications
-/allow - Verify your authentication status
-/disallow - Confirm authentication status
 
 💡 *Usage Tips:*
 • Use /join with the correct password to get access to restricted commands

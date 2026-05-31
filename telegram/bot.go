@@ -76,8 +76,6 @@ func New(cfg *config.Config, database *db.DB) (*Bot, error) {
 	// Register restricted command handlers with authentication
 	dispatcher.AddHandler(handlers.NewCommand("join", joinHandler(b.auth, database)))
 	dispatcher.AddHandler(handlers.NewCommand("leave", leaveHandler(b.auth, database)))
-	dispatcher.AddHandler(handlers.NewCommand("allow", allowHandler(b.auth, database)))
-	dispatcher.AddHandler(handlers.NewCommand("disallow", disallowHandler(b.auth, database)))
 	dispatcher.AddHandler(handlers.NewCommand("alerts", alertsHandler(b.auth, database)))
 
 	// Register help command handler
@@ -196,8 +194,6 @@ func (b *Bot) setBotCommands() error {
 		{Command: "status", Description: "Show system metrics (requires authentication)"},
 		{Command: "alerts", Description: "Toggle alert notifications (on/off)"},
 		{Command: "leave", Description: "Remove yourself from the system"},
-		{Command: "allow", Description: "Verify your authentication status"},
-		{Command: "disallow", Description: "Confirm authentication status"},
 	}
 
 	_, err := b.bot.SetMyCommands(commands, &gotgbot.SetMyCommandsOpts{

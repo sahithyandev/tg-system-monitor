@@ -134,8 +134,6 @@ The detection engine uses a multi-layered approach for intelligent alerting:
 - `/status` - View current system metrics and status
 - `/alerts <on|off>` - Enable or disable alert notifications
 - `/leave` - Remove your account from the system
-- `/allow` - Verify your authentication status
-- `/disallow` - Verify your authentication status
 
 ### Usage Examples
 ```
