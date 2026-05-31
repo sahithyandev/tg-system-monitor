@@ -24,6 +24,17 @@ func authMiddleware(authManager *auth.AuthManager, handler func(b *gotgbot.Bot, 
 			return nil
 		}
 
+		if message.Chat.Type != "private" {
+			_, err := message.Reply(b, msg.AuthDeniedTemplate("The `/join` command can only be used in private chats"), &gotgbot.SendMessageOpts{
+				ParseMode: "markdown",
+			})
+			if err != nil {
+				fmt.Println(msg.LogFailed(msg.ComponentBot, "private chat denial message", err.Error()))
+			}
+			fmt.Println(msg.LogIgnored(msg.ComponentBot, "/join command", fmt.Sprintf("non-private chat (%s) by user %s (@%s)", message.Chat.Type, message.From.FirstName, message.From.Username)))
+			return nil
+		}
+
 		// Extract command and password from message
 		parts := strings.Fields(message.Text)
 		if len(parts) < 1 {
@@ -88,18 +99,6 @@ func joinHandler(authManager *auth.AuthManager, database *db.DB) func(b *gotgbot
 	return authMiddleware(authManager, func(b *gotgbot.Bot, ctx *ext.Context) error {
 		message := ctx.EffectiveMessage
 		if message == nil {
-			return nil
-		}
-
-		// Check if command is used in a private chat
-		if message.Chat.Type != "private" {
-			_, err := message.Reply(b, msg.AuthDeniedTemplate("The `/join` command can only be used in private chats"), &gotgbot.SendMessageOpts{
-				ParseMode: "markdown",
-			})
-			if err != nil {
-				fmt.Println(msg.LogFailed(msg.ComponentBot, "private chat denial message", err.Error()))
-			}
-			fmt.Println(msg.LogIgnored(msg.ComponentBot, "/join command", fmt.Sprintf("non-private chat (%s) by user %s (@%s)", message.Chat.Type, message.From.FirstName, message.From.Username)))
 			return nil
 		}
 
