@@ -284,8 +284,14 @@ func statusHandler(database *db.DB, cfg *config.Config) func(b *gotgbot.Bot, ctx
 			return err
 		}
 
+		activeAlerts, err := database.GetActiveAlertKeys()
+		if err != nil {
+			log.Printf("Failed to get active alerts: %v", err)
+			activeAlerts = nil
+		}
+
 		// Format status message using the existing formatter
-		response := formatter.FormatStatus(sample)
+		response := formatter.FormatStatus(sample, activeAlerts)
 
 		_, err = message.Reply(b, response, nil)
 		if err != nil {

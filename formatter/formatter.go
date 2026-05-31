@@ -37,7 +37,7 @@ func FormatDuration(seconds float64) string {
 	return fmt.Sprintf("%02dm %02ds", minutes, seconds_remain)
 }
 
-func FormatStatus(sample *metrics.MetricSample) string {
+func FormatStatus(sample *metrics.MetricSample, activeAlerts []string) string {
 	var sb strings.Builder
 	sb.WriteString(fmt.Sprintf("Uptime: %s\n\n", FormatDuration(sample.Uptime)))
 
@@ -50,7 +50,14 @@ func FormatStatus(sample *metrics.MetricSample) string {
 	}
 	sb.WriteString(fmt.Sprintf("Load avg: %.2f %.2f %.2f\n\n", sample.Load1, sample.Load5, sample.Load15))
 
-	sb.WriteString("Active alerts: none\n") // Placeholder for now
+	if len(activeAlerts) == 0 {
+		sb.WriteString("Active alerts: none\n")
+	} else {
+		sb.WriteString(fmt.Sprintf("Active alerts (%d):\n", len(activeAlerts)))
+		for _, key := range activeAlerts {
+			sb.WriteString(fmt.Sprintf("  - %s\n", key))
+		}
+	}
 	sb.WriteString(fmt.Sprintf("Updated: %s", sample.Timestamp.Format("2006-01-02 15:04:05")))
 
 	return sb.String()

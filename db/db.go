@@ -466,6 +466,23 @@ func (db *DB) UpdateAlertState(s *AlertState) error {
 	})
 }
 
+func (db *DB) GetActiveAlertKeys() ([]string, error) {
+	rows, err := db.conn.Query("SELECT alert_key FROM alert_state WHERE is_active = 1")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var keys []string
+	for rows.Next() {
+		var key string
+		if err := rows.Scan(&key); err != nil {
+			return nil, err
+		}
+		keys = append(keys, key)
+	}
+	return keys, rows.Err()
+}
+
 // Failed auth methods
 
 func (db *DB) GetFailedAuth(userID int64) (int, int64, error) {
