@@ -6,7 +6,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"tg-system-monitor/message"
 	msg "tg-system-monitor/message"
 
 	"gopkg.in/yaml.v3"
@@ -94,122 +93,6 @@ type Config struct {
 	Monitors MonitorsConfig `yaml:"monitors"`
 }
 
-// legacyConfig captures the old flat threshold keys that have been moved under monitors.
-// Used only during loading to detect and migrate deprecated fields.
-type legacyConfig struct {
-	CPUThresholdPercent  float64        `yaml:"cpu_threshold_percent"`
-	CPURecoveryPercent   float64        `yaml:"cpu_recovery_percent"`
-	CPUSustainSeconds    int            `yaml:"cpu_sustain_seconds"`
-	MemThresholdPercent  float64        `yaml:"mem_threshold_percent"`
-	MemRecoveryPercent   float64        `yaml:"mem_recovery_percent"`
-	MemSustainSeconds    int            `yaml:"mem_sustain_seconds"`
-	SwapThresholdPercent float64        `yaml:"swap_threshold_percent"`
-	SwapRecoveryPercent  float64        `yaml:"swap_recovery_percent"`
-	SwapSustainSeconds   int            `yaml:"swap_sustain_seconds"`
-	DiskThresholdPercent float64        `yaml:"disk_threshold_percent"`
-	DiskRecoveryPercent  float64        `yaml:"disk_recovery_percent"`
-	Load1Warning         float64        `yaml:"load1_warning"`
-	Load1Critical        float64        `yaml:"load1_critical"`
-	Load5Warning         float64        `yaml:"load5_warning"`
-	Load5Critical        float64        `yaml:"load5_critical"`
-	Load15Warning        float64        `yaml:"load15_warning"`
-	Load15Critical       float64        `yaml:"load15_critical"`
-	Volumes              []VolumeConfig `yaml:"volumes"`
-}
-
-// deprecatedKeyMap maps each old flat key to its replacement path under monitors.
-var deprecatedKeyMap = []struct{ Old, New string }{
-	{"cpu_threshold_percent", "monitors.cpu.threshold_percent"},
-	{"cpu_recovery_percent", "monitors.cpu.recovery_percent"},
-	{"cpu_sustain_seconds", "monitors.cpu.sustain_seconds"},
-	{"mem_threshold_percent", "monitors.memory.threshold_percent"},
-	{"mem_recovery_percent", "monitors.memory.recovery_percent"},
-	{"mem_sustain_seconds", "monitors.memory.sustain_seconds"},
-	{"swap_threshold_percent", "monitors.swap.threshold_percent"},
-	{"swap_recovery_percent", "monitors.swap.recovery_percent"},
-	{"swap_sustain_seconds", "monitors.swap.sustain_seconds"},
-	{"disk_threshold_percent", "monitors.disk.threshold_percent"},
-	{"disk_recovery_percent", "monitors.disk.recovery_percent"},
-	{"load1_warning", "monitors.load.load1.warning"},
-	{"load1_critical", "monitors.load.load1.critical"},
-	{"load5_warning", "monitors.load.load5.warning"},
-	{"load5_critical", "monitors.load.load5.critical"},
-	{"load15_warning", "monitors.load.load15.warning"},
-	{"load15_critical", "monitors.load.load15.critical"},
-	{"volumes", "monitors.disk.volumes"},
-}
-
-// warnDeprecatedKeys prints a deprecation warning to stderr for each legacy key
-// present in raw. The probe is key-based to avoid the zero-value ambiguity in
-// struct-based unmarshalling.
-func warnDeprecatedKeys(raw map[string]interface{}) {
-	for _, entry := range deprecatedKeyMap {
-		if _, present := raw[entry.Old]; present {
-			fmt.Fprintln(os.Stderr, message.LogDeprecated(message.ComponentConfig, entry.Old, entry.New))
-		}
-	}
-}
-
-// applyLegacy folds non-zero legacy values into cfg.Monitors, but only when the
-// corresponding new nested field is still zero (new-format values win over deprecated ones).
-func applyLegacy(cfg *Config, legacy *legacyConfig) {
-	m := &cfg.Monitors
-
-	if legacy.CPUThresholdPercent != 0 && m.CPU.ThresholdPercent == 0 {
-		m.CPU.ThresholdPercent = legacy.CPUThresholdPercent
-	}
-	if legacy.CPURecoveryPercent != 0 && m.CPU.RecoveryPercent == 0 {
-		m.CPU.RecoveryPercent = legacy.CPURecoveryPercent
-	}
-	if legacy.CPUSustainSeconds != 0 && m.CPU.SustainSeconds == 0 {
-		m.CPU.SustainSeconds = legacy.CPUSustainSeconds
-	}
-	if legacy.MemThresholdPercent != 0 && m.Memory.ThresholdPercent == 0 {
-		m.Memory.ThresholdPercent = legacy.MemThresholdPercent
-	}
-	if legacy.MemRecoveryPercent != 0 && m.Memory.RecoveryPercent == 0 {
-		m.Memory.RecoveryPercent = legacy.MemRecoveryPercent
-	}
-	if legacy.MemSustainSeconds != 0 && m.Memory.SustainSeconds == 0 {
-		m.Memory.SustainSeconds = legacy.MemSustainSeconds
-	}
-	if legacy.SwapThresholdPercent != 0 && m.Swap.ThresholdPercent == 0 {
-		m.Swap.ThresholdPercent = legacy.SwapThresholdPercent
-	}
-	if legacy.SwapRecoveryPercent != 0 && m.Swap.RecoveryPercent == 0 {
-		m.Swap.RecoveryPercent = legacy.SwapRecoveryPercent
-	}
-	if legacy.SwapSustainSeconds != 0 && m.Swap.SustainSeconds == 0 {
-		m.Swap.SustainSeconds = legacy.SwapSustainSeconds
-	}
-	if legacy.DiskThresholdPercent != 0 && m.Disk.ThresholdPercent == 0 {
-		m.Disk.ThresholdPercent = legacy.DiskThresholdPercent
-	}
-	if legacy.DiskRecoveryPercent != 0 && m.Disk.RecoveryPercent == 0 {
-		m.Disk.RecoveryPercent = legacy.DiskRecoveryPercent
-	}
-	if len(legacy.Volumes) > 0 && len(m.Disk.Volumes) == 0 {
-		m.Disk.Volumes = legacy.Volumes
-	}
-	if legacy.Load1Warning != 0 && m.Load.Load1.Warning == 0 {
-		m.Load.Load1.Warning = legacy.Load1Warning
-	}
-	if legacy.Load1Critical != 0 && m.Load.Load1.Critical == 0 {
-		m.Load.Load1.Critical = legacy.Load1Critical
-	}
-	if legacy.Load5Warning != 0 && m.Load.Load5.Warning == 0 {
-		m.Load.Load5.Warning = legacy.Load5Warning
-	}
-	if legacy.Load5Critical != 0 && m.Load.Load5.Critical == 0 {
-		m.Load.Load5.Critical = legacy.Load5Critical
-	}
-	if legacy.Load15Warning != 0 && m.Load.Load15.Warning == 0 {
-		m.Load.Load15.Warning = legacy.Load15Warning
-	}
-	if legacy.Load15Critical != 0 && m.Load.Load15.Critical == 0 {
-		m.Load.Load15.Critical = legacy.Load15Critical
-	}
-}
 
 func (c *Config) PrintThresholds() {
 	fmt.Printf("%s\n", msg.StatusTemplate("System Monitor Configuration", "Active", "Thresholds and settings loaded successfully"))
@@ -397,7 +280,7 @@ func Load() (*Config, error) {
 		return nil, err
 	}
 
-	fmt.Printf("%s\n", message.LogStarted(message.ComponentConfig, fmt.Sprintf("using config file: %s", path)))
+	fmt.Printf("%s\n", msg.LogStarted(msg.ComponentConfig, fmt.Sprintf("using config file: %s", path)))
 
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -413,18 +296,6 @@ func Load() (*Config, error) {
 	var userConfig Config
 	if err := yaml.Unmarshal(data, &userConfig); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal user config: %w", err)
-	}
-
-	// Detect and warn about deprecated flat keys (key-based probe avoids zero-value ambiguity)
-	var raw map[string]interface{}
-	if err := yaml.Unmarshal(data, &raw); err == nil {
-		warnDeprecatedKeys(raw)
-	}
-
-	// Migrate deprecated flat values into monitors; new-format values win
-	var legacy legacyConfig
-	if err := yaml.Unmarshal(data, &legacy); err == nil {
-		applyLegacy(&userConfig, &legacy)
 	}
 
 	// Merge user config with defaults

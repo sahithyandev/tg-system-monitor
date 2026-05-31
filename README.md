@@ -148,15 +148,60 @@ The detection engine uses a multi-layered approach for intelligent alerting:
 
 ## Configuration
 
-The bot uses a YAML configuration file located at `~/.config/tg-system-monitor/config.yml`. Key settings include:
+The bot uses a YAML configuration file located at `~/.config/tg-system-monitor/config.yml`. Copy `default-config.yml` as a starting point. Key settings:
 
-- `bot_token`: Telegram bot token (optional — omit to run in collector-only mode without Telegram or alerts)
-- `poll_interval_seconds`: Metrics collection interval
-- `cpu_threshold_percent`: CPU critical threshold
-- `mem_threshold_percent`: Memory critical threshold  
-- `disk_threshold_percent`: Disk critical threshold
-- `alert_cooldown_seconds`: Time between duplicate alerts
-- `hysteresis`: Recovery buffer percentage
+| Key                      | Default                               | Description                                                                                       |
+| ------------------------ | ------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `bot_token`              | `""`                                  | Telegram bot token from [@BotFather](https://t.me/botfather). Omit to run in collector-only mode. |
+| `poll_interval_seconds`  | `15`                                  | How often metrics are sampled (seconds).                                                          |
+| `alert_cooldown_seconds` | `1800`                                | Minimum time between repeated alerts for the same metric.                                         |
+| `top_process_count`      | `5`                                   | Number of top processes shown in status output.                                                   |
+| `db_path`                | `~/.config/tg-system-monitor/tgsm.db` | SQLite database path.                                                                             |
+| `data_retention_days`    | `30`                                  | How long metric samples are kept.                                                                 |
+| `hysteresis`             | `5.0`                                 | Recovery buffer (%). A metric must drop this far below `recovery_percent` before an alert clears. |
+| `hostname_override`      | `""`                                  | Override the hostname shown in messages.                                                          |
+| `metrics_api_addr`       | `""`                                  | Address to expose the HTTP metrics API (e.g. `127.0.0.1:9090`). Empty = disabled.                 |
+
+### Monitor thresholds
+
+Each metric is configured under `monitors.<metric>`:
+
+```yaml
+monitors:
+  cpu:
+    threshold_percent: 85.0   # alert when CPU exceeds this
+    recovery_percent: 70.0    # clear alert when CPU drops below this
+    sustain_seconds: 300      # must stay high for this long before alerting
+
+  memory:
+    threshold_percent: 90.0
+    recovery_percent: 80.0
+    sustain_seconds: 180
+
+  swap:
+    threshold_percent: 25.0
+    recovery_percent: 10.0
+    sustain_seconds: 180
+
+  disk:
+    threshold_percent: 95.0
+    recovery_percent: 90.0
+    volumes:                  # optional extra mount points to monitor
+      - path: /data
+        threshold_percent: 95.0
+        recovery_percent: 90.0
+
+  load:
+    load1:
+      warning: 2.0
+      critical: 4.0
+    load5:
+      warning: 1.5
+      critical: 3.0
+    load15:
+      warning: 1.0
+      critical: 2.0
+```
 
 ## Metrics HTTP API
 

@@ -12,7 +12,6 @@ const (
 	StatusDisabled   = "disabled"
 	StatusEnabled    = "enabled"
 	StatusIgnored    = "ignored"
-	StatusDeprecated = "deprecated"
 )
 
 // Log message templates
@@ -40,9 +39,6 @@ var (
 	}
 	LogIgnored = func(component, condition, reason string) string {
 		return fmt.Sprintf("[%s] %s: %s - %s", component, StatusIgnored, condition, reason)
-	}
-	LogDeprecated = func(component, oldKey, newKey string) string {
-		return fmt.Sprintf("[%s] %s: %q is deprecated, use %q instead", component, StatusDeprecated, oldKey, newKey)
 	}
 )
 

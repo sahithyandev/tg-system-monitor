@@ -3,7 +3,6 @@ package config
 import (
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"gopkg.in/yaml.v3"
@@ -401,14 +400,7 @@ monitors:
 			wantBotToken:     "full_user_token",
 			wantCPUThreshold: 90.0,
 		},
-		{
-			name:             "Legacy flat key — cpu_threshold_percent migrated",
-			userConfigYAML:   "cpu_threshold_percent: 92.0",
-			wantPollInterval: 15,
-			wantBotToken:     "",
-			wantCPUThreshold: 92.0, // migrated from legacy key
-		},
-	}
+}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -440,143 +432,6 @@ monitors:
 	}
 }
 
-func Test_Load_LegacyFlatKeys(t *testing.T) {
-	tmpDir := t.TempDir()
-	tmpFile := filepath.Join(tmpDir, "config.yml")
-
-	old := GetConfigPath
-	GetConfigPath = func() (string, error) { return tmpFile, nil }
-	defer func() { GetConfigPath = old }()
-
-	t.Run("All legacy flat threshold keys are migrated", func(t *testing.T) {
-		yaml := `cpu_threshold_percent: 88.0
-cpu_recovery_percent: 72.0
-cpu_sustain_seconds: 400
-mem_threshold_percent: 91.0
-mem_recovery_percent: 81.0
-mem_sustain_seconds: 200
-swap_threshold_percent: 30.0
-swap_recovery_percent: 12.0
-swap_sustain_seconds: 200
-disk_threshold_percent: 96.0
-disk_recovery_percent: 91.0
-load1_warning: 3.0
-load1_critical: 5.0
-load5_warning: 2.0
-load5_critical: 4.0
-load15_warning: 1.5
-load15_critical: 3.0
-`
-		if err := os.WriteFile(tmpFile, []byte(yaml), 0644); err != nil {
-			t.Fatal(err)
-		}
-		cfg, err := Load()
-		if err != nil {
-			t.Fatalf("Load() error = %v", err)
-		}
-		m := cfg.Monitors
-		checks := map[string][2]float64{
-			"CPU.ThresholdPercent":    {m.CPU.ThresholdPercent, 88.0},
-			"CPU.RecoveryPercent":     {m.CPU.RecoveryPercent, 72.0},
-			"Memory.ThresholdPercent": {m.Memory.ThresholdPercent, 91.0},
-			"Memory.RecoveryPercent":  {m.Memory.RecoveryPercent, 81.0},
-			"Swap.ThresholdPercent":   {m.Swap.ThresholdPercent, 30.0},
-			"Swap.RecoveryPercent":    {m.Swap.RecoveryPercent, 12.0},
-			"Disk.ThresholdPercent":   {m.Disk.ThresholdPercent, 96.0},
-			"Disk.RecoveryPercent":    {m.Disk.RecoveryPercent, 91.0},
-			"Load1.Warning":           {m.Load.Load1.Warning, 3.0},
-			"Load1.Critical":          {m.Load.Load1.Critical, 5.0},
-			"Load5.Warning":           {m.Load.Load5.Warning, 2.0},
-			"Load5.Critical":          {m.Load.Load5.Critical, 4.0},
-			"Load15.Warning":          {m.Load.Load15.Warning, 1.5},
-			"Load15.Critical":         {m.Load.Load15.Critical, 3.0},
-		}
-		for name, pair := range checks {
-			if pair[0] != pair[1] {
-				t.Errorf("%s = %v, want %v", name, pair[0], pair[1])
-			}
-		}
-		if m.CPU.SustainSeconds != 400 {
-			t.Errorf("CPU.SustainSeconds = %v, want 400", m.CPU.SustainSeconds)
-		}
-	})
-
-	t.Run("New nested key wins over legacy flat key", func(t *testing.T) {
-		// Both cpu_threshold_percent (legacy) and monitors.cpu.threshold_percent (new) set.
-		// New value (99.0) should win.
-		yaml := `cpu_threshold_percent: 88.0
-monitors:
-  cpu:
-    threshold_percent: 99.0
-`
-		os.Remove(tmpFile)
-		if err := os.WriteFile(tmpFile, []byte(yaml), 0644); err != nil {
-			t.Fatal(err)
-		}
-		cfg, err := Load()
-		if err != nil {
-			t.Fatalf("Load() error = %v", err)
-		}
-		if cfg.Monitors.CPU.ThresholdPercent != 99.0 {
-			t.Errorf("CPU.ThresholdPercent = %v, want 99.0 (new key should win)", cfg.Monitors.CPU.ThresholdPercent)
-		}
-	})
-}
-
-func Test_warnDeprecatedKeys(t *testing.T) {
-	tests := []struct {
-		name      string
-		raw       map[string]interface{}
-		wantCount int // expected number of deprecation lines on stderr
-	}{
-		{
-			name:      "No deprecated keys",
-			raw:       map[string]interface{}{"bot_token": "x", "monitors": map[string]interface{}{}},
-			wantCount: 0,
-		},
-		{
-			name:      "One deprecated key",
-			raw:       map[string]interface{}{"cpu_threshold_percent": 85.0},
-			wantCount: 1,
-		},
-		{
-			name: "Multiple deprecated keys",
-			raw: map[string]interface{}{
-				"cpu_threshold_percent": 85.0,
-				"mem_threshold_percent": 90.0,
-				"load1_warning":         2.0,
-			},
-			wantCount: 3,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Redirect stderr to a pipe to count warnings
-			oldStderr := os.Stderr
-			r, w, err := os.Pipe()
-			if err != nil {
-				t.Fatal(err)
-			}
-			os.Stderr = w
-
-			warnDeprecatedKeys(tt.raw)
-
-			w.Close()
-			os.Stderr = oldStderr
-
-			buf := make([]byte, 4096)
-			n, _ := r.Read(buf)
-			output := string(buf[:n])
-
-			// Each warning line starts with "[config] deprecated:"; count those lines.
-			count := strings.Count(output, "[config] deprecated:")
-			if count != tt.wantCount {
-				t.Errorf("got %d deprecation warning(s), want %d\noutput: %q", count, tt.wantCount, output)
-			}
-		})
-	}
-}
 
 func Test_Load_WithInvalidUserConfig(t *testing.T) {
 	tmpDir := t.TempDir()
