@@ -10,17 +10,19 @@ import (
 
 	"tg-system-monitor/db"
 	"tg-system-monitor/message"
+	"tg-system-monitor/metrics"
 )
 
 // Server exposes system metrics over HTTP for consumption by other services.
 type Server struct {
-	db   *db.DB
-	addr string
+	db          *db.DB
+	addr        string
+	volumeSizes []metrics.VolumeInfo
 }
 
 // NewServer creates a new metrics API server.
-func NewServer(database *db.DB, addr string) *Server {
-	return &Server{db: database, addr: addr}
+func NewServer(database *db.DB, addr string, volumeSizes []metrics.VolumeInfo) *Server {
+	return &Server{db: database, addr: addr, volumeSizes: volumeSizes}
 }
 
 // Start begins listening for requests and blocks until ctx is cancelled.
@@ -60,6 +62,7 @@ type metricsResponse struct {
 	MemPercent  float64      `json:"mem_percent"`
 	SwapPercent float64      `json:"swap_percent"`
 	DiskPercent float64      `json:"disk_percent"`
+	DiskTotal   uint64       `json:"disk_total_bytes"`
 	Load1       float64      `json:"load1"`
 	Load5       float64      `json:"load5"`
 	Load15      float64      `json:"load15"`
@@ -67,8 +70,9 @@ type metricsResponse struct {
 }
 
 type volumeJSON struct {
-	Path    string  `json:"path"`
-	Percent float64 `json:"percent"`
+	Path       string  `json:"path"`
+	Percent    float64 `json:"percent"`
+	TotalBytes uint64  `json:"total_bytes,omitempty"`
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {
@@ -97,6 +101,11 @@ func (s *Server) handleMetrics(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	sizeByPath := make(map[string]uint64, len(s.volumeSizes))
+	for _, vi := range s.volumeSizes {
+		sizeByPath[vi.Path] = vi.TotalBytes
+	}
+
 	resp := metricsResponse{
 		Timestamp:   sample.Timestamp.Unix(),
 		UptimeSecs:  sample.Uptime,
@@ -104,13 +113,18 @@ func (s *Server) handleMetrics(w http.ResponseWriter, r *http.Request) {
 		MemPercent:  sample.MemPercent,
 		SwapPercent: sample.SwapPercent,
 		DiskPercent: sample.DiskPercent,
+		DiskTotal:   sizeByPath["/"],
 		Load1:       sample.Load1,
 		Load5:       sample.Load5,
 		Load15:      sample.Load15,
 		Volumes:     make([]volumeJSON, 0, len(sample.Volumes)),
 	}
 	for _, v := range sample.Volumes {
-		resp.Volumes = append(resp.Volumes, volumeJSON{Path: v.Path, Percent: v.Percent})
+		resp.Volumes = append(resp.Volumes, volumeJSON{
+			Path:       v.Path,
+			Percent:    v.Percent,
+			TotalBytes: sizeByPath[v.Path],
+		})
 	}
 
 	writeJSON(w, http.StatusOK, resp)

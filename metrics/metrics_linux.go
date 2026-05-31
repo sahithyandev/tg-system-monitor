@@ -19,10 +19,25 @@ type Collector struct {
 	prevCPUTotal uint64
 	prevCPUIdle  uint64
 	volumePaths  []string
+	volumeSizes  []VolumeInfo
 }
 
 func NewCollector(volumePaths []string) *Collector {
-	return &Collector{volumePaths: volumePaths}
+	c := &Collector{volumePaths: volumePaths}
+	allPaths := append([]string{"/"}, volumePaths...)
+	for _, p := range allPaths {
+		total, err := getDiskTotalBytes(p)
+		if err != nil {
+			log.Printf("warning: failed to get disk size for %s: %v", p, err)
+			continue
+		}
+		c.volumeSizes = append(c.volumeSizes, VolumeInfo{Path: p, TotalBytes: total})
+	}
+	return c
+}
+
+func (c *Collector) VolumeSizes() []VolumeInfo {
+	return c.volumeSizes
 }
 
 func (c *Collector) Collect() (*MetricSample, error) {
@@ -230,6 +245,14 @@ func getDiskUsage(path string) (float64, error) {
 	}
 
 	return float64(used) / float64(total) * 100, nil
+}
+
+func getDiskTotalBytes(path string) (uint64, error) {
+	var stat syscall.Statfs_t
+	if err := syscall.Statfs(path, &stat); err != nil {
+		return 0, err
+	}
+	return stat.Blocks * uint64(stat.Bsize), nil
 }
 
 func (c *Collector) GetTopProcesses(n int) ([]Process, error) {

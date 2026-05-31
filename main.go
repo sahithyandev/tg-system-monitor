@@ -221,7 +221,7 @@ func runMonitor() {
 	// Start optional metrics HTTP API
 	if cfg.MetricsAPIAddr != "" {
 		fmt.Printf("%s\n", message.LogStarted(message.ComponentAPI, "metrics HTTP API on "+cfg.MetricsAPIAddr))
-		apiServer := api.NewServer(database, cfg.MetricsAPIAddr)
+		apiServer := api.NewServer(database, cfg.MetricsAPIAddr, collector.VolumeSizes())
 		go apiServer.Start(ctx)
 	} else {
 		log.Printf("%s", message.LogDisabled(message.ComponentAPI, "metrics_api_addr not configured; HTTP API disabled"))

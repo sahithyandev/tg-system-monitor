@@ -7,6 +7,11 @@ type VolumeSample struct {
 	Percent float64
 }
 
+type VolumeInfo struct {
+	Path       string
+	TotalBytes uint64
+}
+
 type MetricSample struct {
 	Timestamp   time.Time
 	CPUPercent  float64
