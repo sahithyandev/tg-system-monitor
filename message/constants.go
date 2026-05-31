@@ -120,4 +120,5 @@ const (
 	ComponentAlert     = "alert"
 	ComponentMetrics   = "metrics"
 	ComponentConfig    = "config"
+	ComponentAPI       = "api"
 )

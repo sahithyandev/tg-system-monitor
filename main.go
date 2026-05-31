@@ -11,6 +11,7 @@ import (
 	"strings"
 	"syscall"
 	"tg-system-monitor/alert"
+	"tg-system-monitor/api"
 	"tg-system-monitor/auth"
 	"tg-system-monitor/config"
 	"tg-system-monitor/db"
@@ -215,6 +216,15 @@ func runMonitor() {
 		alertSender := alert.NewSender(database, tgBot, 30*time.Second)
 		fmt.Printf("%s\n", message.LogStarted(message.ComponentAlert, "alert sender (30s interval)"))
 		go alertSender.Start(ctx)
+	}
+
+	// Start optional metrics HTTP API
+	if cfg.MetricsAPIAddr != "" {
+		fmt.Printf("%s\n", message.LogStarted(message.ComponentAPI, "metrics HTTP API on "+cfg.MetricsAPIAddr))
+		apiServer := api.NewServer(database, cfg.MetricsAPIAddr)
+		go apiServer.Start(ctx)
+	} else {
+		log.Printf("%s", message.LogDisabled(message.ComponentAPI, "metrics_api_addr not configured; HTTP API disabled"))
 	}
 
 	fmt.Printf("%s\n", message.LogStarted(message.ComponentMetrics, fmt.Sprintf("metrics collection (interval: %ds)", cfg.PollInterval)))

@@ -4,6 +4,10 @@
 # If omitted, the monitor runs in collector-only mode (no Telegram bot or alerts).
 bot_token: ""
 
+# Optional: Expose the latest metrics as JSON over HTTP for other services to query.
+# Empty = disabled. When set, prefer binding to localhost, e.g. "127.0.0.1:9090".
+metrics_api_addr: ""
+
 # Optional: Hash of password for users to join the bot
 # DO NOT EDIT MANUALLY. USE `set-password` TO DO SO.
 join_password_hash: ""

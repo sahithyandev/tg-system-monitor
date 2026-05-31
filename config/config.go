@@ -89,6 +89,8 @@ type Config struct {
 	DataRetentionDays    int     `yaml:"data_retention_days"`
 	Hysteresis           float64 `yaml:"hysteresis"`
 
+	MetricsAPIAddr string `yaml:"metrics_api_addr"`
+
 	Monitors MonitorsConfig `yaml:"monitors"`
 }
 
@@ -371,6 +373,9 @@ func mergeConfigs(defaultConfig, userConfig *Config) *Config {
 	}
 	if userConfig.Hysteresis != 0 {
 		merged.Hysteresis = userConfig.Hysteresis
+	}
+	if userConfig.MetricsAPIAddr != "" {
+		merged.MetricsAPIAddr = userConfig.MetricsAPIAddr
 	}
 
 	mergeMonitors(&merged.Monitors, &userConfig.Monitors)

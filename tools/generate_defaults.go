@@ -66,6 +66,8 @@ type Config struct {
 	DataRetentionDays    int     `yaml:"data_retention_days"`
 	Hysteresis           float64 `yaml:"hysteresis"`
 
+	MetricsAPIAddr string `yaml:"metrics_api_addr"`
+
 	Monitors MonitorsConfig `yaml:"monitors"`
 }
 
@@ -107,6 +109,7 @@ func generateDefaultsFile(config Config) {
 	b.WriteString("\t\tDBPath:               filepath.Join(configDir, \"tgsm.db\"),\n")
 	fmt.Fprintf(&b, "\t\tDataRetentionDays:    %d,\n", config.DataRetentionDays)
 	fmt.Fprintf(&b, "\t\tHysteresis:           %.1f,\n", config.Hysteresis)
+	fmt.Fprintf(&b, "\t\tMetricsAPIAddr:       %q,\n", config.MetricsAPIAddr)
 
 	m := config.Monitors
 	b.WriteString("\t\tMonitors: MonitorsConfig{\n")

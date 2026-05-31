@@ -160,6 +160,56 @@ The bot uses a YAML configuration file located at `~/.config/tg-system-monitor/c
 - `alert_cooldown_seconds`: Time between duplicate alerts
 - `hysteresis`: Recovery buffer percentage
 
+## Metrics HTTP API
+
+`tg-system-monitor` can expose the latest collected metrics over HTTP so other services
+can query them programmatically. The feature is **disabled by default**; enable it by
+setting `metrics_api_addr` in your config:
+
+```yaml
+# Bind to localhost only (recommended for host-local consumers):
+metrics_api_addr: "127.0.0.1:9090"
+
+# Or expose on all interfaces (use firewall rules to restrict access):
+# metrics_api_addr: "0.0.0.0:9090"
+```
+
+### Endpoints
+
+| Method | Path       | Description                  |
+| ------ | ---------- | ---------------------------- |
+| `GET`  | `/metrics` | Latest metric sample as JSON |
+| `GET`  | `/health`  | Database liveness check      |
+
+### `GET /metrics` — response shape
+
+```json
+{
+  "timestamp": 1748691600,
+  "uptime_seconds": 86400.0,
+  "cpu_percent": 12.5,
+  "mem_percent": 54.3,
+  "swap_percent": 0.0,
+  "disk_percent": 61.2,
+  "load1": 0.42,
+  "load5": 0.38,
+  "load15": 0.31,
+  "volumes": [
+    { "path": "/data", "percent": 73.1 }
+  ]
+}
+```
+
+Returns `503` with `{"error": "..."}` if no sample has been collected yet (within the
+first poll interval after startup).
+
+### Example
+
+```sh
+curl -s http://127.0.0.1:9090/metrics | jq
+curl -s http://127.0.0.1:9090/health
+```
+
 ## Release Process
 
 This project uses automated releases through GitHub Actions and GoReleaser.
