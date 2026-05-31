@@ -128,6 +128,7 @@ The detection engine uses a multi-layered approach for intelligent alerting:
 ### Public Commands
 - `/ping` - Check bot status and last metric collection time
 - `/whoami` - Display your user profile and authentication status
+- `/help` - Show all available commands
 
 ### Authenticated Commands
 - `/join <password>` - Authenticate with the bot (only works in private chats)
@@ -138,6 +139,7 @@ The detection engine uses a multi-layered approach for intelligent alerting:
 ### Usage Examples
 ```
 /ping                    # Check if bot is running
+/help                    # Show all available commands
 /join secretpassword     # Authenticate with password
 /status                  # View current system metrics
 /alerts on              # Enable alert notifications
@@ -169,19 +171,19 @@ Each metric is configured under `monitors.<metric>`:
 ```yaml
 monitors:
   cpu:
-    threshold_percent: 85.0   # alert when CPU exceeds this
-    recovery_percent: 70.0    # clear alert when CPU drops below this
-    sustain_seconds: 300      # must stay high for this long before alerting
+    threshold_percent: 85.0   # critical alert when CPU exceeds this
+    recovery_percent: 70.0    # warning alert when CPU exceeds this; alert clears below (recovery_percent - hysteresis)
+    sustain_seconds: 300      # detection window size in seconds (shared across all metrics)
 
   memory:
     threshold_percent: 90.0
     recovery_percent: 80.0
-    sustain_seconds: 180
+    sustain_seconds: 180      # note: only cpu.sustain_seconds is used as the detection window
 
   swap:
     threshold_percent: 25.0
     recovery_percent: 10.0
-    sustain_seconds: 180
+    sustain_seconds: 180      # note: only cpu.sustain_seconds is used as the detection window
 
   disk:
     threshold_percent: 95.0
