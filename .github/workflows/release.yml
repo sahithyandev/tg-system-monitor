@@ -6,10 +6,6 @@ on:
       - 'v*'
   workflow_dispatch:
     inputs:
-      tag:
-        description: 'Tag to release (e.g., v0.1.0)'
-        required: false
-        type: string
       skip_tests:
         description: 'Skip running tests'
         required: false
@@ -30,7 +26,7 @@ jobs:
         with:
           fetch-depth: 0
           fetch-tags: true
-          ref: ${{ inputs.tag || github.ref }}
+          ref: ${{ github.ref }}
       
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -53,4 +49,4 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GORELEASER_CURRENT_TAG: ${{ inputs.tag || github.ref_name }}
+          GORELEASER_CURRENT_TAG: ${{ github.ref_name }}
