@@ -42,7 +42,7 @@ The app is a long-running Go service. `main.go:runMonitor()` wires all component
 | `detection` | Threshold evaluation engine; alert state machine stored in DB |
 | `alert` | Polls DB for unsent alerts; sends via the `AlertSender` interface |
 | `telegram` | `gotgbot/v2` bot; registers handlers in `bot.go`, implements them in `handlers.go` and `auth_handlers.go` |
-| `api` | Optional HTTP server exposing `GET /metrics` and `GET /health` |
+| `api` | Optional HTTP server exposing `GET /metrics`, `GET /metrics/history`, and `GET /health` |
 | `auth` | bcrypt password hashing + `AuthManager` backed by DB |
 | `formatter` | Formats metric values for Telegram messages |
 | `message` | Shared log/status message templates |

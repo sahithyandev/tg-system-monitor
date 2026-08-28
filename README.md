@@ -220,10 +220,11 @@ metrics_api_addr: "127.0.0.1:9090"
 
 ### Endpoints
 
-| Method | Path       | Description                  |
-| ------ | ---------- | ---------------------------- |
-| `GET`  | `/metrics` | Latest metric sample as JSON |
-| `GET`  | `/health`  | Database liveness check      |
+| Method | Path               | Description                            |
+| ------ | ------------------ | ------------------------------------- |
+| `GET`  | `/metrics`         | Latest metric sample as JSON          |
+| `GET`  | `/metrics/history` | Downsampled metric history for charts |
+| `GET`  | `/health`          | Database liveness check               |
 
 ### `GET /metrics` — response shape
 
@@ -247,11 +248,64 @@ metrics_api_addr: "127.0.0.1:9090"
 Returns `503` with `{"error": "..."}` if no sample has been collected yet (within the
 first poll interval after startup).
 
-### Example
+### `GET /metrics/history` — time-series for charts
+
+Use this to render graphs of resource usage over a time window — an hour, a day, or up
+to your full retention period. Instead of returning every raw sample (which at the 15s
+poll rate is ~5,760 points per day), the endpoint **downsamples**: it splits the range
+into fixed time buckets and returns one point per bucket with the `avg` and `max` of
+each metric in that bucket. `avg` gives a clean trend line; `max` preserves short spikes
+that averaging would otherwise hide (e.g. a brief disk-full or CPU pin).
+
+**Query parameters:**
+
+| Param    | Default        | Description                                                            |
+| -------- | -------------- | -------------------------------------------------------------------- |
+| `from`   | now − 1 hour   | Start of the window, Unix seconds.                                    |
+| `to`     | now            | End of the window, Unix seconds.                                      |
+| `bucket` | auto           | Seconds per bucket. Omit to let the server pick (~2,000 points for the range, never finer than the poll interval). |
+
+The response is rejected with `400` if the requested range and bucket would produce
+more than 5,000 points — widen `bucket` (or narrow the range) and retry. History only
+goes back as far as `data_retention_days`; older samples are purged.
+
+```json
+{
+  "from": 1748605200,
+  "to": 1748691600,
+  "bucket_seconds": 60,
+  "points": [
+    {
+      "timestamp": 1748605200,
+      "cpu_percent":  { "avg": 12.5, "max": 41.0 },
+      "mem_percent":  { "avg": 54.3, "max": 55.1 },
+      "swap_percent": { "avg": 0.0,  "max": 0.0  },
+      "disk_percent": { "avg": 61.2, "max": 61.2 },
+      "load1":  { "avg": 0.42, "max": 1.10 },
+      "load5":  { "avg": 0.38, "max": 0.71 },
+      "load15": { "avg": 0.31, "max": 0.44 },
+      "volumes": [
+        { "path": "/data", "percent": { "avg": 73.1, "max": 73.4 }, "total_bytes": 512000000000 }
+      ]
+    }
+  ]
+}
+```
+
+Points are ordered oldest first. Buckets with no samples are omitted (gaps in the data
+show as gaps in the array). `timestamp` is the start of the bucket.
+
+### Examples
 
 ```sh
 curl -s http://127.0.0.1:9090/metrics | jq
 curl -s http://127.0.0.1:9090/health
+
+# History — last 24 hours, server-picked resolution:
+curl -s "http://127.0.0.1:9090/metrics/history?from=$(date -d '24 hours ago' +%s)" | jq
+
+# History — last 30 days at 1-hour resolution:
+curl -s "http://127.0.0.1:9090/metrics/history?from=$(date -d '30 days ago' +%s)&bucket=3600" | jq
 ```
 
 ## Release Process

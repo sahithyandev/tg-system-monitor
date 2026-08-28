@@ -594,6 +594,110 @@ func (db *DB) GetLatestMetric() (*metrics.MetricSample, error) {
 	return &s, nil
 }
 
+// Stat is the avg/max pair for one metric within a history bucket. When
+// bucketSecs matches the sample interval each bucket holds a single sample and
+// Avg == Max.
+type Stat struct {
+	Avg float64 `json:"avg"`
+	Max float64 `json:"max"`
+}
+
+// MetricBucket is one downsampled point of metric history.
+type MetricBucket struct {
+	BucketStart int64
+	CPU         Stat
+	Mem         Stat
+	Swap        Stat
+	Disk        Stat
+	Load1       Stat
+	Load5       Stat
+	Load15      Stat
+	Volumes     []VolumeBucket
+}
+
+// VolumeBucket is the downsampled disk-usage percent for one mount within a bucket.
+type VolumeBucket struct {
+	Path    string
+	Percent Stat
+}
+
+// GetMetricHistory returns metric history in [from, to] grouped into fixed
+// buckets of bucketSecs seconds, oldest first. Empty buckets are omitted.
+// Each metric is aggregated as avg (trend) and max (spikes). Per-volume
+// percents are attached to their bucket.
+func (db *DB) GetMetricHistory(from, to, bucketSecs int64) ([]MetricBucket, error) {
+	if bucketSecs <= 0 {
+		return nil, fmt.Errorf("bucketSecs must be positive")
+	}
+
+	rows, err := db.conn.Query(`
+		SELECT (ts_unix/?)*? AS bucket,
+			AVG(cpu_percent), MAX(cpu_percent),
+			AVG(mem_percent), MAX(mem_percent),
+			AVG(swap_percent), MAX(swap_percent),
+			AVG(disk_percent), MAX(disk_percent),
+			AVG(load1), MAX(load1),
+			AVG(load5), MAX(load5),
+			AVG(load15), MAX(load15)
+		FROM metric_samples
+		WHERE ts_unix >= ? AND ts_unix <= ?
+		GROUP BY bucket
+		ORDER BY bucket`, bucketSecs, bucketSecs, from, to)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []MetricBucket
+	idx := make(map[int64]*MetricBucket)
+	for rows.Next() {
+		var b MetricBucket
+		if err := rows.Scan(&b.BucketStart,
+			&b.CPU.Avg, &b.CPU.Max,
+			&b.Mem.Avg, &b.Mem.Max,
+			&b.Swap.Avg, &b.Swap.Max,
+			&b.Disk.Avg, &b.Disk.Max,
+			&b.Load1.Avg, &b.Load1.Max,
+			&b.Load5.Avg, &b.Load5.Max,
+			&b.Load15.Avg, &b.Load15.Max); err != nil {
+			return nil, err
+		}
+		out = append(out, b)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if len(out) == 0 {
+		return out, nil
+	}
+	for i := range out {
+		idx[out[i].BucketStart] = &out[i]
+	}
+
+	vrows, err := db.conn.Query(`
+		SELECT (ts_unix/?)*? AS bucket, mount_path,
+			AVG(disk_percent), MAX(disk_percent)
+		FROM volume_samples
+		WHERE ts_unix >= ? AND ts_unix <= ?
+		GROUP BY bucket, mount_path
+		ORDER BY bucket, mount_path`, bucketSecs, bucketSecs, out[0].BucketStart, to)
+	if err != nil {
+		return nil, err
+	}
+	defer vrows.Close()
+	for vrows.Next() {
+		var bucket int64
+		var v VolumeBucket
+		if err := vrows.Scan(&bucket, &v.Path, &v.Percent.Avg, &v.Percent.Max); err != nil {
+			return nil, err
+		}
+		if b := idx[bucket]; b != nil {
+			b.Volumes = append(b.Volumes, v)
+		}
+	}
+	return out, vrows.Err()
+}
+
 // GetLatestVolumePercent returns the most recently recorded disk percent for
 // the given mount path, plus a boolean indicating whether a row was found.
 func (db *DB) GetLatestVolumePercent(path string) (float64, bool, error) {
