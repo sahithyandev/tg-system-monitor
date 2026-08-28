@@ -1,6 +1,7 @@
 # Temporary files
 tgsm
 .temp
+.DS_Store
 
 # Distribution files
 dist
